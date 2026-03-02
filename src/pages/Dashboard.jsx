@@ -5,6 +5,7 @@ import {
   CheckCircle,
   AlertCircle,
   FileCheck,
+  Building2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts'
@@ -200,7 +201,7 @@ const Dashboard = () => {
     }
   }
 
-  const { totalLeads, totalAgents, totalFranchises, totalRevenue, totalLoanAmount, totalInvoices } = stats
+  const { totalLeads, totalAgents, totalFranchises, totalRevenue, totalLoanAmount } = stats
   const isAgent = userRole === 'agent'
   const isAccountant = userRole === 'accounts_manager'
 
@@ -395,10 +396,10 @@ const Dashboard = () => {
               color="green"
             />
             <StatCard
-              title="Total Invoices"
-              value={totalInvoices ?? 0}
-              icon={FileText}
-              color="orange"
+              title="Active Franchises"
+              value={totalFranchises}
+              icon={Building2}
+              color="teal"
             />
             <StatCard
               title="Total Amount"

@@ -50,20 +50,6 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       remarks: lead?.remarks || leadFormValues.remark || leadFormValues.remarks || '',
       smBmEmail: lead?.smBmEmail || leadFormValues.smBmEmail || '',
       smBmMobile: lead?.smBmMobile || leadFormValues.smBmMobile || '',
-      smBmName: (() => {
-        const fromLead = lead?.smBm?.name || lead?.smBmName || leadFormValues.smBmName || '';
-        if (fromLead) return fromLead;
-        const email = lead?.smBmEmail || leadFormValues.smBmEmail || '';
-        if (email && typeof email === 'string') {
-          const beforeAt = email.trim().split('@')[0];
-          if (beforeAt) {
-            const nameFromEmail = beforeAt.replace(/\./g, ' ').trim();
-            return nameFromEmail.replace(/\b\w/g, (c) => c.toUpperCase());
-          }
-        }
-        return '';
-      })(),
-      asmName: lead?.asmName || leadFormValues.asmName || '',
       commissionPercentage: lead?.commissionPercentage !== undefined && lead?.commissionPercentage !== null ? lead.commissionPercentage : '',
       commissionAmount: lead?.commissionAmount !== undefined && lead?.commissionAmount !== null ? lead.commissionAmount : '',
       // Agent commission fields (for franchise)
@@ -220,7 +206,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     }
   };
 
-  // Fetch franchises for Refer Franchise dropdown
+  // Fetch franchises for Refer Franchise dropdown (all roles including relationship managers can refer a franchise)
   useEffect(() => {
     const loadFranchises = async () => {
       try {
@@ -413,16 +399,6 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
   const handleStandardChange = (k, v) => {
     setStandard((p) => {
       const updated = { ...p, [k]: v };
-      
-      // Auto-fill SM/BM Name from SM/BM Email (e.g. kaleshrawani16@gmail.com -> Kaleshrawani16 or part before @ with spaces)
-      if (k === 'smBmEmail' && typeof v === 'string' && v.trim()) {
-        const beforeAt = v.trim().split('@')[0];
-        if (beforeAt) {
-          const nameFromEmail = beforeAt.replace(/\./g, ' ').trim();
-          const titleCase = nameFromEmail.replace(/\b\w/g, (c) => c.toUpperCase());
-          updated.smBmName = titleCase;
-        }
-      }
       
       // Auto-calculate commission amount when percentage is filled
       if (k === 'commissionPercentage' && v && p.loanAmount) {
@@ -764,10 +740,8 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       payload.loanAccountNo = standard.loanAccountNo?.trim() || undefined;
       payload.dsaCode = standard.dsaCode?.trim() || undefined;
       payload.remarks = standard.remarks?.trim() || undefined;
-      payload.smBmName = standard.smBmName?.trim() || undefined;
       payload.smBmEmail = standard.smBmEmail?.trim() || undefined;
       payload.smBmMobile = standard.smBmMobile?.trim() || undefined;
-      payload.asmName = standard.asmName?.trim() || undefined;
       
       // Agent commission fields for franchise (when not assigned to self)
       if (isFranchise && !isSelfSelected && !isNewLead) {
@@ -1214,20 +1188,6 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                   </div>
                 )}
 
-                {/* SM/BM Name - only for bank leads */}
-                {!isNewLead && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">SM/BM Name</label>
-                    <input
-                      type="text"
-                      value={standard.smBmName || ''}
-                      onChange={(e) => handleStandardChange('smBmName', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                      placeholder="SM/BM name"
-                    />
-                  </div>
-                )}
-
                 {/* SM/BM Email - only for bank leads */}
                 {!isNewLead && (
                   <div>
@@ -1250,20 +1210,6 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                       value={standard.smBmMobile || ''}
                       onChange={(e) => handleStandardChange('smBmMobile', e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                    />
-                  </div>
-                )}
-
-                {/* ASM Name - only for bank leads */}
-                {!isNewLead && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">ASM Name</label>
-                    <input
-                      type="text"
-                      value={standard.asmName || ''}
-                      onChange={(e) => handleStandardChange('asmName', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                      placeholder="ASM name"
                     />
                   </div>
                 )}

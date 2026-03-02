@@ -283,48 +283,52 @@ const Payouts = () => {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 w-full max-w-full overflow-x-hidden px-4 md:px-0">
-      {/* Header - single column on mobile, buttons below title, full-width */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
         <div>
-          <h1 className="text-[20px] md:text-2xl font-bold text-gray-900 leading-tight">Payouts</h1>
-          <p className="text-sm text-gray-600 mt-1">Manage bank payments to company</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Payouts</h1>
+          <p className="text-xs sm:text-sm text-gray-600 mt-1">Manage bank payments to company</p>
         </div>
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {canExportData(userRole) && (
             <button
               onClick={() => exportToExcel(filteredPayouts, 'payouts')}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 min-h-[44px] md:min-h-0 w-full md:w-auto border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
-              <FileDown className="w-5 h-5 flex-shrink-0" />
-              <span>Export to Excel</span>
+              <FileDown className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Export</span>
             </button>
           )}
           {canCreate && (
             <button
               onClick={handleCreate}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 min-h-[44px] md:min-h-0 w-full md:w-auto bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors text-sm font-medium"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
             >
-              <Plus className="w-5 h-5 flex-shrink-0" />
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
               <span>Add Payout</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Stats - Mobile: 3 equal cards (Total, Paid, Pending) */}
-      <div className="grid grid-cols-3 gap-3 md:hidden">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-xs text-gray-500 font-medium">Total</p>
-          <p className="text-base font-bold text-gray-900 mt-1 truncate" title={formatInCrores(totalAmount)}>{formatInCrores(totalAmount)}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-xs text-gray-500 font-medium">Paid</p>
-          <p className="text-base font-bold text-green-600 mt-1 truncate" title={formatInCrores(paidAmount)}>{formatInCrores(paidAmount)}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-xs text-gray-500 font-medium">Pending</p>
-          <p className="text-base font-bold text-orange-600 mt-1 truncate" title={formatInCrores(pendingAmount)}>{formatInCrores(pendingAmount)}</p>
+      {/* Compact Summary Bar - Mobile Only */}
+      <div className="md:hidden bg-gradient-to-r from-gray-50 to-white rounded-lg shadow-sm border border-gray-200 px-4 py-3.5">
+        <div className="flex items-center justify-between text-xs sm:text-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500 font-medium">Total</span>
+            <span className="font-bold text-gray-900">{formatInCrores(totalAmount)}</span>
+          </div>
+          <span className="text-gray-300 mx-1">|</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500 font-medium">Paid</span>
+            <span className="font-bold text-green-600">{formatInCrores(paidAmount)}</span>
+          </div>
+          <span className="text-gray-300 mx-1">|</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500 font-medium">Pending</span>
+            <span className="font-bold text-orange-600">{formatInCrores(pendingAmount)}</span>
+          </div>
         </div>
       </div>
 
@@ -376,23 +380,21 @@ const Payouts = () => {
         </div>
       </div>
 
-      {/* Filters - Collapsible accordion, full-width inputs, min 44px touch targets */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden w-full md:relative sticky top-0 z-20 md:z-auto md:shadow-sm">
+      {/* Filters - Sticky on Mobile */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden md:relative sticky top-0 z-20 md:z-auto md:shadow-sm">
         <button
           type="button"
           onClick={() => setFiltersOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors min-h-[44px] md:min-h-0"
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
         >
-          <span className="flex items-center gap-2 font-medium text-gray-900 text-sm md:text-base">
-            <Filter className="w-5 h-5 text-gray-500 flex-shrink-0" />
+          <span className="flex items-center gap-2 font-medium text-gray-900">
+            <Filter className="w-5 h-5 text-gray-500" />
             Filter options
             {hasActiveFilters && (
               <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">Active</span>
             )}
           </span>
-          <span className="flex items-center flex-shrink-0 ml-2">
-            {filtersOpen ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
-          </span>
+          {filtersOpen ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
         </button>
         {filtersOpen && (
           <div className="border-t border-gray-200 p-4 space-y-4">
@@ -406,7 +408,7 @@ const Payouts = () => {
                     placeholder="Payout number, agent..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                   />
                 </div>
               </div>
@@ -415,7 +417,7 @@ const Payouts = () => {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
                 >
                   {statusOptions.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -429,7 +431,7 @@ const Payouts = () => {
                 <select
                   value={franchiseFilter}
                   onChange={(e) => setFranchiseFilter(e.target.value)}
-                  className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
                 >
                   <option value="">All Franchises</option>
                   {franchises.map((f) => (
@@ -444,7 +446,7 @@ const Payouts = () => {
                 <select
                   value={agentFilter}
                   onChange={(e) => setAgentFilter(e.target.value)}
-                  className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
                 >
                   <option value="">All Agents</option>
                   {agents.map((a) => (
@@ -460,7 +462,7 @@ const Payouts = () => {
                   type="date"
                   value={dateFromFilter}
                   onChange={(e) => setDateFromFilter(e.target.value)}
-                  className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                 />
               </div>
               <div>
@@ -469,7 +471,7 @@ const Payouts = () => {
                   type="date"
                   value={dateToFilter}
                   onChange={(e) => setDateToFilter(e.target.value)}
-                  className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                 />
               </div>
             </div>
@@ -477,8 +479,8 @@ const Payouts = () => {
         )}
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden md:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {/* Payouts Table - First on Mobile */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto overflow-y-visible" style={{ maxHeight: 'calc(100vh - 400px)' }}>
           <table className="w-full min-w-[800px]">
             <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
@@ -624,82 +626,6 @@ const Payouts = () => {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* Mobile Card Layout */}
-      <div className="md:hidden space-y-4">
-        {filteredPayouts.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-            <p className="text-sm text-gray-500">No payouts found</p>
-          </div>
-        ) : (
-          filteredPayouts.map((payout) => (
-            <div
-              key={payout._id || payout.id}
-              className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 min-h-[48px]"
-            >
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Payout Number</p>
-                  <p className="text-base font-bold text-gray-900 mt-0.5">{payout.payoutNumber || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Agent</p>
-                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{getAgentDisplay(payout)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Franchise</p>
-                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{getFranchiseDisplay(payout)}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <div>
-                    <p className="text-xs text-gray-500">Total</p>
-                    <p className="text-sm font-bold text-gray-900">{formatInCrores(payout.totalAmount || 0)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Net Payable</p>
-                    <p className="text-sm font-bold text-gray-900">{formatInCrores(payout.netPayable || 0)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={payout.status} />
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end gap-2 flex-wrap">
-                <button
-                  onClick={() => handleView(payout)}
-                  className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-primary-600 hover:bg-primary-50"
-                  title="View"
-                >
-                  <Eye className="w-5 h-5" />
-                </button>
-                {canEdit && (
-                  <button
-                    onClick={() => handleEdit(payout)}
-                    className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100"
-                    title="Edit"
-                  >
-                    <Edit className="w-5 h-5" />
-                  </button>
-                )}
-                {canDelete && (
-                  <button
-                    onClick={() => handleDeleteClick(payout)}
-                    className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-        {filteredPayouts.length > 0 && (
-          <p className="text-sm text-gray-600 text-center py-2">
-            Showing <span className="font-medium">{filteredPayouts.length}</span> of <span className="font-medium">{payouts.length}</span> payouts
-          </p>
-        )}
       </div>
 
       {/* Create Modal */}

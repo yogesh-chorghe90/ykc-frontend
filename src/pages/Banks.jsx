@@ -195,7 +195,7 @@ const Banks = () => {
 
         // Ensure all required fields are present and not empty
         // Form validation should have caught empty fields, but double-check here
-        if (!formData.name?.trim() || !formData.contactEmail?.trim()) {
+        if (!formData.name?.trim() || !formData.type || !formData.contactEmail?.trim()) {
           console.error('❌ DEBUG: Missing required fields after validation:', {
             name: formData.name,
             type: formData.type,
@@ -305,6 +305,7 @@ const Banks = () => {
                   'Contact Person': bank.contactPerson || 'N/A',
                   Email: bank.contactEmail || bank.email || 'N/A',
                   'Contact Mobile': bank.contactMobile || 'N/A',
+                  Type: bank.type || 'N/A',
                   'Total Loans': stats.total,
                   'Active Loans': stats.active,
                   Completed: stats.completed,
@@ -431,6 +432,15 @@ const Banks = () => {
                     {getSortIcon('name')}
                   </div>
                 </th>
+                <th
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('type')}
+                >
+                  <div className="flex items-center gap-2">
+                    Type
+                    {getSortIcon('type')}
+                  </div>
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Contact Person
                 </th>
@@ -472,13 +482,13 @@ const Banks = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : sortedBanks.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                     No banks found
                   </td>
                 </tr>
@@ -491,6 +501,9 @@ const Banks = () => {
                     <tr key={bankId} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{bank.name || 'N/A'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-mono text-gray-900">{bank.type || bank.code || 'N/A'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{bank.contactPerson || 'N/A'}</div>

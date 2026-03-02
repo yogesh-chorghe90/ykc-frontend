@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Copy, Settings2, History, X, FileDown, CheckCircle, FileText } from 'lucide-react'
+import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Copy, Settings2, History, X, FileDown, CheckCircle } from 'lucide-react'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
 import StatusBadge from '../components/StatusBadge'
@@ -1116,11 +1116,10 @@ const Leads = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-6 flex-shrink-0 gap-3 md:gap-0">
         <div className="flex-1">
-          <h1 className="text-[20px] md:text-2xl font-bold text-gray-900 leading-tight">Leads Management</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Leads Management</h1>
           <p className="text-xs md:text-sm text-gray-600 mt-1">Manage and track all loan leads</p>
         </div>
-        {/* Action buttons - stacked below description on mobile, full-width Create Lead */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 md:gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-2">
           {canExportData() && (
             <button
               onClick={() => {
@@ -1156,7 +1155,7 @@ const Leads = () => {
             }}
             disabled={sortedLeads.length === 0}
             title="Export currently filtered data to Excel"
-            className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 min-h-[48px] md:min-h-0 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             <FileDown className="w-4 h-4" />
             <span className="hidden sm:inline">Export to Excel</span>
@@ -1167,7 +1166,7 @@ const Leads = () => {
             <button
               data-column-settings-button
               onClick={() => setShowColumnSettings(!showColumnSettings)}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 min-h-[48px] md:min-h-0 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
             >
               <Settings2 className="w-4 h-4" />
               <span>Columns</span>
@@ -1231,7 +1230,7 @@ const Leads = () => {
           {canCreate && (
             <button
               onClick={handleCreate}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors text-sm font-medium min-h-[48px] md:min-h-0"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors text-sm font-medium min-h-[44px] sm:min-h-0"
             >
               <Plus className="w-4 h-4 md:w-5 md:h-5" />
               <span>Create Lead</span>
@@ -1241,22 +1240,20 @@ const Leads = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-4 md:mb-6 flex-shrink-0 w-full">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-3 md:mb-6 flex-shrink-0">
         <button
           type="button"
           onClick={() => setFiltersOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors min-h-[48px] md:min-h-0"
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
         >
           <span className="flex items-center gap-2 font-medium text-gray-900 text-sm md:text-base">
-            <Filter className="w-4 h-4 md:w-5 md:h-5 text-gray-500 flex-shrink-0" />
+            <Filter className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
             Filter options
             {hasActiveFilters && (
               <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">Active</span>
             )}
           </span>
-          <span className="flex items-center flex-shrink-0">
-            {filtersOpen ? <ChevronUp className="w-4 h-4 md:w-5 md:h-5 text-gray-500" /> : <ChevronDown className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />}
-          </span>
+          {filtersOpen ? <ChevronUp className="w-4 h-4 md:w-5 md:h-5 text-gray-500" /> : <ChevronDown className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />}
         </button>
         {filtersOpen && (
           <div className="border-t border-gray-200 p-4 space-y-4">
@@ -2410,7 +2407,7 @@ const Leads = () => {
       </div>
 
       {/* Mobile Card View */}
-      <div className="md:hidden space-y-4 mb-4 mt-1">
+      <div className="md:hidden space-y-3 mb-4">
         {loading ? (
           <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
@@ -2458,16 +2455,16 @@ const Leads = () => {
                   setSelectedLead(lead)
                   setIsDetailModalOpen(true)
                 }}
-                className="bg-white rounded-lg border border-gray-200 p-4 min-h-[48px] active:bg-gray-50 transition-colors cursor-pointer"
+                className="bg-white rounded-lg border border-gray-200 p-4 min-h-[48px] active:bg-gray-50 transition-colors"
               >
                 {/* Primary Info */}
                 <div className="space-y-2 mb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-[20px] font-bold text-gray-900 truncate leading-tight">
+                      <h3 className="text-base font-semibold text-gray-900 truncate">
                         {lead.customerName || 'N/A'}
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1 font-medium">
+                      <p className="text-sm text-gray-600 mt-0.5">
                         {lead.loanType?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}
                       </p>
                     </div>
@@ -2477,15 +2474,15 @@ const Leads = () => {
                   </div>
                 </div>
 
-                {/* Secondary Info - Labels: smaller/lighter, Values: bold */}
-                <div className="pt-3 border-t border-gray-100 space-y-2.5">
+                {/* Secondary Info */}
+                <div className="pt-3 border-t border-gray-100 space-y-2">
                   {secondaryColumns.map((col) => {
                     const value = getFieldValue(col)
                     if (value === 'N/A' || !value) return null
                     return (
-                      <div key={col.key} className="flex items-center justify-between gap-2 min-h-[24px]">
-                        <span className="text-xs text-gray-500 font-normal flex-shrink-0">{col.label}</span>
-                        <span className="text-sm font-bold text-gray-900 text-right truncate">
+                      <div key={col.key} className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500 font-medium">{col.label}:</span>
+                        <span className="text-xs font-semibold text-gray-900 text-right flex-1 ml-2">
                           {col.key === 'loanAmount' || col.key === 'disbursedAmount' ? value : String(value)}
                         </span>
                       </div>
@@ -2493,9 +2490,9 @@ const Leads = () => {
                   })}
                 </div>
 
-                {/* Actions - improved touch spacing */}
+                {/* Actions */}
                 {visibleColumns.some(col => col.key === 'actions') && (
-                  <div className="pt-3 border-t border-gray-100 mt-3 flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="pt-3 border-t border-gray-100 mt-3 flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     {canEdit && (
                       <>
                         <button
@@ -2504,20 +2501,20 @@ const Leads = () => {
                             setSelectedLead(lead)
                             setIsEditModalOpen(true)
                           }}
-                          className="text-gray-600 hover:text-gray-900 p-3 min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg active:bg-gray-100"
+                          className="text-gray-600 hover:text-gray-900 p-2"
                           title="Edit"
                         >
-                          <Edit className="w-5 h-5" />
+                          <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleDeleteClick(lead)
                           }}
-                          className="text-red-600 hover:text-red-900 p-3 min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg active:bg-red-50"
+                          className="text-red-600 hover:text-red-900 p-2"
                           title="Delete"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => {
@@ -2525,10 +2522,10 @@ const Leads = () => {
                             setSelectedLead(lead)
                             setIsDetailModalOpen(true)
                           }}
-                          className="text-primary-600 hover:text-primary-900 p-3 min-h-[48px] min-w-[48px] flex items-center justify-center rounded-lg active:bg-primary-50"
+                          className="text-primary-600 hover:text-primary-900 p-2"
                           title="View"
                         >
-                          <Eye className="w-5 h-5" />
+                          <Eye className="w-4 h-4" />
                         </button>
                       </>
                     )}
@@ -2686,6 +2683,21 @@ const Leads = () => {
                 <label className="text-sm font-medium text-gray-500">Agent Commission Amount</label>
                 <p className="mt-1 text-sm text-gray-900">
                   ₹{(selectedLead.agentCommissionAmount || selectedLead.commissionAmount || 0).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Refer Franchise Commission %</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {(() => {
+                    const commission = selectedLead.referralFranchiseCommissionPercentage || 0;
+                    return typeof commission === 'number' ? commission.toFixed(2) + '%' : parseFloat(commission || 0).toFixed(2) + '%';
+                  })()}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">Refer Franchise Commission Amount</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  ₹{(selectedLead.referralFranchiseCommissionAmount || 0).toLocaleString()}
                 </p>
               </div>
               <div>

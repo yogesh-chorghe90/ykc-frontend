@@ -377,14 +377,13 @@ const RelationshipManagers = () => {
   ]
 
   return (
-    <div className="space-y-4 md:space-y-6 w-full max-w-full overflow-x-hidden px-4 md:px-0">
-      {/* Header - single column on mobile, full-width stacked buttons */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[20px] md:text-2xl font-bold text-gray-900 leading-tight">Relationship Managers</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Relationship Managers</h1>
           <p className="text-sm text-gray-600 mt-1">Manage relationship managers</p>
         </div>
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => {
               const rows = sortedRMs.map((r) => {
@@ -407,30 +406,33 @@ const RelationshipManagers = () => {
             }}
             disabled={sortedRMs.length === 0}
             title="Export to Excel"
-            className="flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 min-h-[44px] md:min-h-0 w-full md:w-auto bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FileDown className="w-5 h-5 flex-shrink-0" />
+            <FileDown className="w-5 h-5" />
             <span>Export to Excel</span>
           </button>
           <button
             onClick={handleCreate}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 min-h-[44px] md:min-h-0 w-full md:w-auto bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
           >
-            <Plus className="w-5 h-5 flex-shrink-0" />
+            <Plus className="w-5 h-5" />
             <span>Create Relationship Manager</span>
           </button>
         </div>
       </div>
 
-      {/* Stats - Mobile: 2 responsive cards (Total, Active) */}
-      <div className="grid grid-cols-2 gap-3 md:hidden">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-xs text-gray-500 font-medium">Total</p>
-          <p className="text-lg font-bold text-gray-900 mt-1">{totalRMs}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 text-center">
-          <p className="text-xs text-gray-500 font-medium">Active</p>
-          <p className="text-lg font-bold text-green-600 mt-1">{activeRMs}</p>
+      {/* Compact Summary Bar - Mobile Only */}
+      <div className="md:hidden bg-gradient-to-r from-gray-50 to-white rounded-lg shadow-sm border border-gray-200 px-4 py-3.5">
+        <div className="flex items-center justify-between text-xs sm:text-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500 font-medium">Total</span>
+            <span className="font-bold text-gray-900">{totalRMs}</span>
+          </div>
+          <span className="text-gray-300 mx-1">|</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500 font-medium">Active</span>
+            <span className="font-bold text-green-600">{activeRMs}</span>
+          </div>
         </div>
       </div>
 
@@ -441,21 +443,15 @@ const RelationshipManagers = () => {
         <StatCard title="Total Revenue" value={`₹${(totalRevenue / 1000).toFixed(0)}K`} icon={IndianRupeeIcon} color="purple" />
       </div>
 
-      {/* Filters - Collapsible accordion, full-width inputs, touch-friendly */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden w-full md:relative sticky top-0 z-20 md:z-auto md:shadow-sm">
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors min-h-[44px] md:min-h-0"
-        >
-          <span className="flex items-center gap-2 font-medium text-gray-900 text-sm md:text-base">
-            <Filter className="w-5 h-5 text-gray-500 flex-shrink-0" />
+      {/* Filters - Sticky on Mobile */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden md:relative sticky top-0 z-20 md:z-auto md:shadow-sm">
+        <button type="button" onClick={() => setFiltersOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+          <span className="flex items-center gap-2 font-medium text-gray-900">
+            <Filter className="w-5 h-5 text-gray-500" />
             Filter options
             {hasActiveFilters && <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">Active</span>}
           </span>
-          <span className="flex items-center flex-shrink-0 ml-2">
-            {filtersOpen ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
-          </span>
+          {filtersOpen ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
         </button>
         {filtersOpen && (
           <div className="border-t border-gray-200 p-4 space-y-4">
@@ -464,24 +460,24 @@ const RelationshipManagers = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" placeholder="Name, location, owner, email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm" />
+                  <input type="text" placeholder="Name, location, owner, email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
                   {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
+                <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
                   {cityOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} className="w-full px-3 py-2.5 md:py-2 min-h-[44px] md:min-h-0 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
+                <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
                   {stateOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
@@ -496,8 +492,7 @@ const RelationshipManagers = () => {
         )}
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden md:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -561,76 +556,6 @@ const RelationshipManagers = () => {
           <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
             <p className="text-sm text-gray-600">Showing <span className="font-medium">{sortedRMs.length}</span> of <span className="font-medium">{sortedRMs.length}</span> relationship managers</p>
           </div>
-        )}
-      </div>
-
-      {/* Mobile Card Layout */}
-      <div className="md:hidden space-y-4">
-        {loading ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600" />
-            <p className="mt-2 text-sm text-gray-500">Loading...</p>
-          </div>
-        ) : sortedRMs.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-            <p className="text-sm text-gray-500">No relationship managers found</p>
-          </div>
-        ) : (
-          sortedRMs.map((rm) => {
-            const id = rm.id || rm._id
-            return (
-              <div
-                key={id}
-                className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 min-h-[48px]"
-              >
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Name</p>
-                    <p className="text-base font-bold text-gray-900 mt-0.5">{rm.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Location</p>
-                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{rm.address?.city || rm.address?.state || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Owner</p>
-                    <p className="text-sm font-semibold text-gray-900 mt-0.5">{rm.ownerName || 'N/A'}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={rm.status} />
-                  </div>
-                </div>
-                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end gap-2 flex-wrap">
-                  <button
-                    onClick={() => handleView(rm)}
-                    className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-primary-600 hover:bg-primary-50"
-                    title="View"
-                  >
-                    <Eye className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => handleEdit(rm)}
-                    className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100"
-                    title="Edit"
-                  >
-                    <Edit className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteClick(rm)}
-                    className="p-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            )
-          })
-        )}
-        {!loading && sortedRMs.length > 0 && (
-          <p className="text-sm text-gray-600 text-center py-2">
-            Showing <span className="font-medium">{sortedRMs.length}</span> of <span className="font-medium">{sortedRMs.length}</span> relationship managers
-          </p>
         )}
       </div>
 
