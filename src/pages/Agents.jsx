@@ -901,21 +901,47 @@ const Agents = () => {
               </div>
             </div>
 
-            {/* Profile / Misc details (created in create-agent form) */}
+            {/* Mapped RM / Franchise */}
             <div className="pt-4 border-t border-gray-200">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">Profile</h4>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                {selectedAgent.managedByModel === 'RelationshipManager' ? 'Mapped Relationship Manager' : 'Mapped Franchise'}
+              </h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Role</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.role || 'agent'}</p>
+                  <label className="text-sm font-medium text-gray-500">
+                    {selectedAgent.managedByModel === 'RelationshipManager' ? 'RM Name' : 'Franchise Name'}
+                  </label>
+                  <p className="mt-1 text-sm text-gray-900 font-medium">{selectedAgent.managedBy?.name || getAssociatedName(selectedAgent) || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Managed By (owner)</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.managedBy?.name || getAssociatedName(selectedAgent) || 'N/A'}</p>
+                  <label className="text-sm font-medium text-gray-500">Type</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {selectedAgent.managedByModel === 'RelationshipManager' ? 'Relationship Manager' : selectedAgent.managedByModel === 'Franchise' ? 'Franchise' : 'N/A'}
+                  </p>
                 </div>
+                {selectedAgent.managedBy?.email && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">
+                      {selectedAgent.managedByModel === 'RelationshipManager' ? 'RM Email' : 'Franchise Email'}
+                    </label>
+                    <p className="mt-1 text-sm text-gray-900">{selectedAgent.managedBy.email}</p>
+                  </div>
+                )}
+                {selectedAgent.managedBy?.phone && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">
+                      {selectedAgent.managedByModel === 'RelationshipManager' ? 'RM Phone' : 'Franchise Phone'}
+                    </label>
+                    <p className="mt-1 text-sm text-gray-900">{selectedAgent.managedBy.phone}</p>
+                  </div>
+                )}
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Managed By Model</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.managedByModel || 'N/A'}</p>
+                  <label className="text-sm font-medium text-gray-500">Partner Type</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${selectedAgent.agentType === 'GST' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {selectedAgent.agentType === 'GST' ? 'GST' : 'Normal'}
+                    </span>
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Commission %</label>
@@ -923,7 +949,7 @@ const Agents = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Created At</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.createdAt ? new Date(selectedAgent.createdAt).toLocaleString() : 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.createdAt ? new Date(selectedAgent.createdAt).toLocaleDateString() : 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Last Login</label>
@@ -935,7 +961,7 @@ const Agents = () => {
             {/* KYC details */}
             <div className="pt-4 border-t border-gray-200">
               <h4 className="text-sm font-semibold text-gray-900 mb-3">KYC</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className={`grid grid-cols-1 gap-4 ${selectedAgent.agentType === 'GST' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                 <div>
                   <label className="text-sm font-medium text-gray-500">PAN</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedAgent.kyc?.pan || 'N/A'}</p>
@@ -944,32 +970,38 @@ const Agents = () => {
                   <label className="text-sm font-medium text-gray-500">Aadhaar</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedAgent.kyc?.aadhaar || 'N/A'}</p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">GST</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.kyc?.gst || 'N/A'}</p>
-                </div>
+                {selectedAgent.agentType === 'GST' && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">GST</label>
+                    <p className="mt-1 text-sm text-gray-900">{selectedAgent.kyc?.gst || 'N/A'}</p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Bank details */}
             <div className="pt-4 border-t border-gray-200">
-              <h4 className="text-sm font-semibold text-gray-900 mb-3">Bank Details</h4>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">Bank Account Details</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Account Holder</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.bankDetails?.accountHolderName || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900 font-medium">{selectedAgent.bankDetails?.accountHolderName || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Account Number</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.bankDetails?.accountNumber || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900 font-mono tracking-wide">{selectedAgent.bankDetails?.accountNumber || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Bank Name</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedAgent.bankDetails?.bankName || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Branch / IFSC</label>
-                  <p className="mt-1 text-sm text-gray-900">{(selectedAgent.bankDetails?.branch ? `${selectedAgent.bankDetails.branch} / ` : '') + (selectedAgent.bankDetails?.ifsc || '') || 'N/A'}</p>
+                  <label className="text-sm font-medium text-gray-500">Branch</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.bankDetails?.branch || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">IFSC Code</label>
+                  <p className="mt-1 text-sm text-gray-900 font-mono uppercase">{selectedAgent.bankDetails?.ifsc || 'N/A'}</p>
                 </div>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Copy, Settings2, History, X, FileDown, CheckCircle, FileText } from 'lucide-react'
+import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Copy, Settings2, History, X, FileDown, CheckCircle, FileText, Paperclip, ExternalLink } from 'lucide-react'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
 import StatusBadge from '../components/StatusBadge'
@@ -12,6 +12,7 @@ import { exportToExcel } from '../utils/exportExcel'
 import { canExportData } from '../utils/roleUtils'
 import AccountantLeads from './AccountantLeads'
 import { formatInCrores } from '../utils/formatUtils'
+
 
 const Leads = () => {
   const userRole = authService.getUser()?.role || 'super_admin'
@@ -48,6 +49,8 @@ const Leads = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [detailAttachments, setDetailAttachments] = useState([])
+  const [loadingDetailAttachments, setLoadingDetailAttachments] = useState(false)
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
   const [leadHistory, setLeadHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -244,7 +247,7 @@ const Leads = () => {
   const fetchLeads = async () => {
     try {
       setLoading(true)
-      const response = await api.leads.getAll()
+      const response = await api.leads.getAll({ limit: 1000 })
       console.log('🔍 DEBUG: Leads API response:', response)
 
       // Handle different response structures
@@ -512,9 +515,23 @@ const Leads = () => {
     setIsEditModalOpen(true)
   }
 
-  const handleView = (lead) => {
+  const handleView = async (lead) => {
     setSelectedLead(lead)
     setIsDetailModalOpen(true)
+    setDetailAttachments([])
+    const leadId = lead?.id || lead?._id
+    if (leadId) {
+      try {
+        setLoadingDetailAttachments(true)
+        const res = await api.documents.list('lead', leadId)
+        const docs = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []
+        setDetailAttachments(docs.filter(d => d.documentType === 'attachment'))
+      } catch (_) {
+        setDetailAttachments([])
+      } finally {
+        setLoadingDetailAttachments(false)
+      }
+    }
   }
 
   const handleViewHistory = async (lead) => {
@@ -1514,11 +1531,12 @@ const Leads = () => {
                       // 'sanctionedAmount' column removed
                       case 'disbursedAmount':
                         return <div className="text-sm font-medium text-gray-900">₹{(lead.disbursedAmount || 0).toLocaleString()}</div>
-                      case 'remainingAmount':
+                      case 'remainingAmount': {
                         const loanAmount = lead.loanAmount || lead.amount || 0;
                         const disbursed = lead.disbursedAmount || 0;
                         const remaining = Math.max(0, loanAmount - disbursed);
                         return <div className="text-sm font-medium text-gray-900">₹{remaining.toLocaleString()}</div>
+                      }
                       case 'agentCommissionPercentage':
                         return (
                           <div className="text-sm font-medium text-gray-900">
@@ -1633,7 +1651,7 @@ const Leads = () => {
                         )
                       case 'status':
                         return <StatusBadge status={lead.status || 'logged'} />
-                      case 'agent':
+                      case 'agent': {
                         const agentName = (() => {
                           // First check agentName field (stored directly on lead - most reliable)
                           if (lead.agentName) {
@@ -1734,7 +1752,8 @@ const Leads = () => {
                             )}
                           </div>
                         )
-                      case 'subAgent':
+                      }
+                      case 'subAgent': {
                         const subAgentName = (() => {
                           // First check subAgentName field (stored directly on lead - most reliable)
                           if (lead.subAgentName) {
@@ -1844,7 +1863,8 @@ const Leads = () => {
                             )}
                           </div>
                         )
-                      case 'associated':
+                      }
+                      case 'associated': {
                         const associatedName = getAssociatedName(lead)
                         const associatedObj = lead.associated
                         const associatedEmail = associatedObj?.email || (lead.agent?.managedBy?.email) || 'N/A'
@@ -1924,7 +1944,8 @@ const Leads = () => {
                             )}
                           </div>
                         )
-                      case 'referralFranchise':
+                      }
+                      case 'referralFranchise': {
                         const referralFranchiseName = (() => {
                           // Check if referralFranchise is populated as an object
                           if (lead.referralFranchise && typeof lead.referralFranchise === 'object' && lead.referralFranchise.name) {
@@ -2013,29 +2034,22 @@ const Leads = () => {
                             )}
                           </div>
                         )
-                      case 'bank':
-                        // Handle bank name display - check multiple possible formats
+                      }
+                      case 'bank': {
                         const bankName = (() => {
-                          // First check if bank is populated as an object with name (from backend populate)
+                          // 1. Denormalized bankName stored directly on lead (most reliable)
+                          if (lead.bankName) return lead.bankName;
+                          // 2. Populated bank object from backend
                           if (lead.bank && typeof lead.bank === 'object' && lead.bank.name) {
                             return lead.bank.name;
                           }
-                          
-                          // Fallback to bankName field if it exists
-                          if (lead.bankName) return lead.bankName;
-                          
-                          // If bank is a string ID or ObjectId, try to find it in banks array
-                          const bankId = lead.bankId || (typeof lead.bank === 'string' ? lead.bank : (lead.bank?._id || lead.bank?.id));
+                          // 3. Look up in local banks array by ID
+                          const bankId = typeof lead.bank === 'string' ? lead.bank : (lead.bank?._id || lead.bank?.id);
                           if (bankId) {
-                            // Convert to string for comparison to handle ObjectId vs string mismatches
-                            const bankIdStr = String(bankId?._id || bankId?.id || bankId);
-                            const foundBank = banks.find((b) => {
-                              const bId = String(b.id || b._id);
-                              return bId === bankIdStr;
-                            });
-                            if (foundBank?.name) return foundBank.name;
+                            const found = banks.find(b => String(b.id || b._id) === String(bankId));
+                            if (found?.name) return found.name;
                           }
-                          return 'N/A'
+                          return 'N/A';
                         })()
                         
                         return (
@@ -2112,6 +2126,7 @@ const Leads = () => {
                             )}
                           </div>
                         )
+                      }
                       case 'smBm':
                         return (
                           <div className="relative" data-expandable>
@@ -2767,6 +2782,65 @@ const Leads = () => {
                 </p>
               </div>
             </div>
+
+            {/* Attachments Section */}
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Paperclip className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-semibold text-gray-700">
+                  Attachments
+                  {detailAttachments.length > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
+                      {detailAttachments.length}
+                    </span>
+                  )}
+                </span>
+              </div>
+              {loadingDetailAttachments ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                  Loading attachments…
+                </div>
+              ) : detailAttachments.length > 0 ? (
+                <div className="space-y-2">
+                  {detailAttachments.map((att) => {
+                    const name = att.fileName || att.originalFileName || att.name || 'Attachment'
+                    const ext = name.split('.').pop()?.toLowerCase() || ''
+                    const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext)
+                    const isPdf = ext === 'pdf'
+                    const sizeKB = att.fileSize ? (att.fileSize / 1024).toFixed(1) : null
+                    return (
+                      <div
+                        key={att.id || att._id}
+                        className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors group"
+                      >
+                        <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${
+                          isImage ? 'bg-green-500' : isPdf ? 'bg-red-500' : 'bg-blue-500'
+                        }`}>
+                          {isPdf ? 'PDF' : ext.toUpperCase().slice(0,3) || '📎'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                          {sizeKB && <p className="text-xs text-gray-500">{sizeKB} KB</p>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => api.documents.open(att.id || att._id)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex-shrink-0"
+                          title="Open in new tab"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Open
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 py-1">No attachments for this lead</p>
+              )}
+            </div>
+
             <div className="pt-4 border-t border-gray-200 flex gap-2">
               {canViewHistory && (
                 <button

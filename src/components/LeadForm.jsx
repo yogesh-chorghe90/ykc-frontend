@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Upload, X, File, Download, Trash2 } from 'lucide-react';
+import { Upload, X, File, ExternalLink, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { toast } from '../services/toastService';
 import { authService } from '../services/auth.service';
@@ -14,6 +14,26 @@ const LOAN_TYPES = [
   { value: 'car_loan', label: 'Car' },
   { value: 'education_loan', label: 'Education' },
 ];
+
+// Fetch a document through the authenticated backend proxy and open it inline in a new tab.
+const openDocument = async (docId, mimeType) => {
+  try {
+    const token = authService.getToken()
+    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+    const base = rawBase.replace(/\/+$/, '').replace(/\/api$/, '')
+    const res = await fetch(`${base}/api/documents/${docId}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+    })
+    if (!res.ok) throw new Error('Failed to fetch document')
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    window.open(blobUrl, '_blank', 'noopener,noreferrer')
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+  } catch {
+    toast.error('Could not open file. Please try again.')
+  }
+}
 
 export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = false }) {
   const userRole = authService.getUser()?.role || '';
@@ -50,6 +70,9 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       remarks: lead?.remarks || leadFormValues.remark || leadFormValues.remarks || '',
       smBmEmail: lead?.smBmEmail || leadFormValues.smBmEmail || '',
       smBmMobile: lead?.smBmMobile || leadFormValues.smBmMobile || '',
+      asmName: lead?.asmName || leadFormValues.asmName || '',
+      asmEmail: lead?.asmEmail || leadFormValues.asmEmail || '',
+      asmMobile: lead?.asmMobile || leadFormValues.asmMobile || '',
       commissionPercentage: lead?.commissionPercentage !== undefined && lead?.commissionPercentage !== null ? lead.commissionPercentage : '',
       commissionAmount: lead?.commissionAmount !== undefined && lead?.commissionAmount !== null ? lead.commissionAmount : '',
       // Agent commission fields (for franchise)
@@ -742,6 +765,9 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       payload.remarks = standard.remarks?.trim() || undefined;
       payload.smBmEmail = standard.smBmEmail?.trim() || undefined;
       payload.smBmMobile = standard.smBmMobile?.trim() || undefined;
+      payload.asmName = standard.asmName?.trim() || undefined;
+      payload.asmEmail = standard.asmEmail?.trim() || undefined;
+      payload.asmMobile = standard.asmMobile?.trim() || undefined;
       
       // Agent commission fields for franchise (when not assigned to self)
       if (isFranchise && !isSelfSelected && !isNewLead) {
@@ -1213,6 +1239,45 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                     />
                   </div>
                 )}
+
+                {/* ASM Name - only for bank leads */}
+                {!isNewLead && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">ASM Name</label>
+                    <input
+                      type="text"
+                      value={standard.asmName || ''}
+                      onChange={(e) => handleStandardChange('asmName', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* ASM Email - only for bank leads */}
+                {!isNewLead && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">ASM Email</label>
+                    <input
+                      type="email"
+                      value={standard.asmEmail || ''}
+                      onChange={(e) => handleStandardChange('asmEmail', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* ASM Contact Number - only for bank leads */}
+                {!isNewLead && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">ASM Contact Number</label>
+                    <input
+                      type="tel"
+                      value={standard.asmMobile || ''}
+                      onChange={(e) => handleStandardChange('asmMobile', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Address - textarea, full width */}
@@ -1441,85 +1506,102 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
         </>
       )}
 
-      {/* Attachments Section - Only show when editing existing lead and user is accountant */}
-      {lead && isAccountant && (
+      {/* Attachments Section - Show for all roles when editing an existing lead */}
+      {lead && (
         <div className="border-t border-gray-200 pt-6 mt-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Attachments
-          </label>
-          
-          {/* File Upload Input */}
-          <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <File className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-semibold text-gray-700">
+                Attachments
+                {attachments.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded-full">
+                    {attachments.length}
+                  </span>
+                )}
+              </span>
+            </div>
+            <label
+              htmlFor="lead-attachments"
+              className={`flex items-center gap-1.5 px-3 py-1.5 bg-primary-900 text-white text-xs font-medium rounded-lg cursor-pointer hover:bg-primary-800 transition-colors ${
+                uploading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''
+              }`}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              {uploading ? 'Uploading…' : 'Add Files'}
+            </label>
             <input
               type="file"
               id="lead-attachments"
               multiple
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
               onChange={(e) => handleAttachmentUpload(e.target.files)}
               disabled={uploading}
               className="hidden"
             />
-            <label
-              htmlFor="lead-attachments"
-              className={`flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-colors ${
-                uploading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              <Upload className="w-5 h-5 text-gray-500" />
-              <span className="text-sm text-gray-700">
-                {uploading ? 'Uploading...' : 'Upload Attachments (Multiple files allowed)'}
-              </span>
-            </label>
           </div>
 
-          {/* Existing Attachments List */}
+          {/* Attachments list */}
           {loadingAttachments ? (
-            <div className="text-sm text-gray-500 py-2">Loading attachments...</div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 py-3">
+              <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-600 rounded-full animate-spin" />
+              Loading attachments…
+            </div>
           ) : attachments.length > 0 ? (
             <div className="space-y-2">
-              {attachments.map((attachment) => (
-                <div
-                  key={attachment.id || attachment._id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <File className="w-5 h-5 text-gray-400 flex-shrink-0" />
+              {attachments.map((attachment) => {
+                const name = attachment.fileName || attachment.originalFileName || attachment.name || 'Attachment';
+                const ext = name.split('.').pop()?.toLowerCase() || '';
+                const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext);
+                const isPdf = ext === 'pdf';
+                const sizeKB = attachment.fileSize ? (attachment.fileSize / 1024).toFixed(1) : null;
+                return (
+                  <div
+                    key={attachment.id || attachment._id}
+                    className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors group"
+                  >
+                    {/* Icon */}
+                    <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${
+                      isImage ? 'bg-green-500' : isPdf ? 'bg-red-500' : 'bg-blue-500'
+                    }`}>
+                      {isImage ? '🖼' : isPdf ? 'PDF' : ext.toUpperCase().slice(0,3) || 'FILE'}
+                    </div>
+                    {/* Name & size */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {attachment.fileName || attachment.name || 'Attachment'}
-                      </p>
-                      {attachment.fileSize && (
-                        <p className="text-xs text-gray-500">
-                          {(attachment.fileSize / 1024).toFixed(1)} KB
-                        </p>
+                      <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                      {sizeKB && <p className="text-xs text-gray-500">{sizeKB} KB</p>}
+                    </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {attachment.url && (
+                        <button
+                          type="button"
+                          onClick={() => openDocument(attachment.id || attachment._id, attachment.mimeType)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                          title="Open in new tab"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAttachment(attachment.id || attachment._id)}
+                        className="p-1.5 text-red-500 hover:bg-red-100 rounded transition-colors"
+                        title="Delete attachment"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {attachment.url && (
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Download"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAttachment(attachment.id || attachment._id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <p className="text-sm text-gray-500 py-2">No attachments uploaded yet</p>
+            <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-gray-200 rounded-lg text-center">
+              <File className="w-8 h-8 text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500">No attachments yet</p>
+              <p className="text-xs text-gray-400 mt-0.5">Click "Add Files" to upload</p>
+            </div>
           )}
         </div>
       )}

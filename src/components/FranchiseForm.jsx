@@ -255,23 +255,60 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
       </div>
 
       {isCreate && (
-        <>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Login Password <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
-                }`}
-              placeholder="Min 6 characters"
-            />
-            {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
-          </div>
-        </>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Login Password <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="Min 6 characters"
+          />
+          {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
+        </div>
+      )}
+
+      {/* Franchise Type — moved to top so GST fields can conditionally show below */}
+      {canAssignRM && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Franchise Type <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="franchiseType"
+            value={formData.franchiseType}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="normal">Normal</option>
+            <option value="GST">GST</option>
+          </select>
+        </div>
+      )}
+
+      {/* Regional Manager — moved up alongside Franchise Type */}
+      {isAdmin && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Regional Manager
+          </label>
+          <select
+            name="regionalManager"
+            value={formData.regionalManager}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="">None</option>
+            {regionalManagers.map((rm) => (
+              <option key={rm._id} value={rm._id}>
+                {rm.name} {rm.email ? `(${rm.email})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       <div>
@@ -344,7 +381,7 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
       </div>
 
       {/* KYC Fields */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${formData.franchiseType === 'GST' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
           <input type="text" name="kyc.pan" value={formData.kyc?.pan || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="PAN number" />
@@ -353,10 +390,12 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
           <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar</label>
           <input type="text" name="kyc.aadhaar" value={formData.kyc?.aadhaar || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Aadhaar number" />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
-          <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
-        </div>
+        {formData.franchiseType === 'GST' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+            <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleNestedChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
+          </div>
+        )}
       </div>
 
       {/* Bank Details */}
@@ -407,17 +446,19 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
             </div>
           )}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">GST Certificate (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')} />
-          {(formData.pendingFiles?.gst || (formData.documents || []).find(d => d.documentType === 'gst')) && (
-            <div className="mt-1 text-sm text-gray-600">
-              {(formData.documents || []).find(d => d.documentType === 'gst') ? (
-                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'gst'))} className="text-primary-700 underline">Preview uploaded GST</button>
-              ) : <span>File selected (will upload after creation)</span>}
-            </div>
-          )}
-        </div>
+        {formData.franchiseType === 'GST' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">GST Certificate (upload)</label>
+            <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')} />
+            {(formData.pendingFiles?.gst || (formData.documents || []).find(d => d.documentType === 'gst')) && (
+              <div className="mt-1 text-sm text-gray-600">
+                {(formData.documents || []).find(d => d.documentType === 'gst') ? (
+                  <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'gst'))} className="text-primary-700 underline">Preview uploaded GST</button>
+                ) : <span>File selected (will upload after creation)</span>}
+              </div>
+            )}
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Bank Statement / Cancelled Cheque (upload)</label>
           <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'bank_statement')} />
@@ -489,46 +530,6 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
           <option value="inactive">Inactive</option>
         </select>
       </div>
-
-      {canAssignRM && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Franchise Type <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="franchiseType"
-            value={formData.franchiseType}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="normal">Normal</option>
-            <option value="GST">GST</option>
-          </select>
-        </div>
-      )}
-
-      {isAdmin && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Regional Manager
-          </label>
-          <select
-            name="regionalManager"
-            value={formData.regionalManager}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">None</option>
-            {regionalManagers.map((rm) => (
-              <option key={rm._id} value={rm._id}>
-                {rm.name} {rm.email ? `(${rm.email})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Relationship managers are not assignable to franchises in the updated hierarchy */}
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <button

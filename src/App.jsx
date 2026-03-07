@@ -26,6 +26,7 @@ import Tickets from './pages/Tickets'
 import SubAgents from './pages/SubAgents'
 import FranchiseCommission from './pages/FranchiseCommission'
 import Payouts from './pages/Payouts'
+import MyContacts from './pages/MyContacts'
 
 function App() {
   const [notifications, setNotifications] = useState([])
@@ -74,6 +75,7 @@ function App() {
           <Route path="form16" element={<Form16 />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="sub-agents" element={<SubAgents />} />
+          <Route path="my-contacts" element={<MyContacts />} />
           <Route path="history" element={<History />} />
           <Route path="franchise-commission" element={<FranchiseCommission />} />
           <Route path="invoices" element={<Invoices />} />

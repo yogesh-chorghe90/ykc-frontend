@@ -533,23 +533,21 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
         {errors.managedBy && <p className="mt-1 text-sm text-red-600">{errors.managedBy}</p>}
       </div>
 
-      {/* Agent Type - Show when franchise creates agent */}
-      {currentUser?.role === 'franchise' && !agent && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Partner Type <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="agentType"
-            value={formData.agentType}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="normal">Normal</option>
-            <option value="GST">GST User</option>
-          </select>
-        </div>
-      )}
+      {/* Partner Type - Always show for all users */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Partner Type <span className="text-red-500">*</span>
+        </label>
+        <select
+          name="agentType"
+          value={formData.agentType}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="normal">Normal</option>
+          <option value="GST">GST</option>
+        </select>
+      </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -568,7 +566,7 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       </div>
 
       {/* KYC Fields */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${formData.agentType === 'GST' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
           <input type="text" name="kyc.pan" value={formData.kyc?.pan || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="PAN number" />
@@ -577,10 +575,12 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
           <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar</label>
           <input type="text" name="kyc.aadhaar" value={formData.kyc?.aadhaar || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Aadhaar number" />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
-          <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
-        </div>
+        {formData.agentType === 'GST' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+            <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
+          </div>
+        )}
       </div>
 
       {/* Bank Details */}
@@ -633,17 +633,19 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
             </div>
           )}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">GST Certificate (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')} />
-          {(formData.pendingFiles?.gst || (formData.documents || []).find(d => d.documentType === 'gst')) && (
-            <div className="mt-1 text-sm text-gray-600">
-              {(formData.documents || []).find(d => d.documentType === 'gst') ? (
-                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'gst'))} className="text-primary-700 underline">Preview uploaded GST</button>
-              ) : <span>File selected (will upload after creation)</span>}
-            </div>
-          )}
-        </div>
+        {formData.agentType === 'GST' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">GST Certificate (upload)</label>
+            <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')} />
+            {(formData.pendingFiles?.gst || (formData.documents || []).find(d => d.documentType === 'gst')) && (
+              <div className="mt-1 text-sm text-gray-600">
+                {(formData.documents || []).find(d => d.documentType === 'gst') ? (
+                  <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'gst'))} className="text-primary-700 underline">Preview uploaded GST</button>
+                ) : <span>File selected (will upload after creation)</span>}
+              </div>
+            )}
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Bank Statement / Cancelled Cheque (upload)</label>
           <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'bank_statement')} />
@@ -690,24 +692,6 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
           <img src={previewUrl} alt={previewName} className="max-w-full max-h-[70vh] mx-auto" />
         )}
       </Modal>
-
-      {/* Agent Type - Show when editing (for all users) or when franchise creates agent */}
-      {agent && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Partner Type <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="agentType"
-            value={formData.agentType}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="normal">Normal</option>
-            <option value="GST">GST User</option>
-          </select>
-        </div>
-      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">

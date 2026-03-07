@@ -15,6 +15,7 @@ const Banks = () => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [loanTypeFilter, setLoanTypeFilter] = useState('all')
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -93,12 +94,13 @@ const Banks = () => {
         (bank.contactPerson && bank.contactPerson.toLowerCase().includes(searchLower)) ||
         (bank.email && bank.email.toLowerCase().includes(searchLower))
       const matchesStatus = statusFilter === 'all' || bank.status === statusFilter
-      return matchesSearch && matchesStatus
+      const matchesLoanType = loanTypeFilter === 'all' || (bank.loanTypes && bank.loanTypes.includes(loanTypeFilter))
+      return matchesSearch && matchesStatus && matchesLoanType
     })
-  }, [banks, searchTerm, statusFilter])
+  }, [banks, searchTerm, statusFilter, loanTypeFilter])
 
-  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all'
-  const clearBankFilters = () => { setSearchTerm(''); setStatusFilter('all') }
+  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || loanTypeFilter !== 'all'
+  const clearBankFilters = () => { setSearchTerm(''); setStatusFilter('all'); setLoanTypeFilter('all') }
 
   // Sort banks
   const sortedBanks = useMemo(() => {
@@ -193,44 +195,17 @@ const Banks = () => {
         fetch('http://127.0.0.1:7242/ingest/f11153c6-25cf-4c9c-a0b4-730f202e186d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'Banks.jsx:163', message: 'Creating bank with data', data: formData, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
         // #endregion
 
-        // Ensure all required fields are present and not empty
-        // Form validation should have caught empty fields, but double-check here
-        if (!formData.name?.trim() || !formData.type || !formData.contactEmail?.trim()) {
-          console.error('❌ DEBUG: Missing required fields after validation:', {
-            name: formData.name,
-            type: formData.type,
-            contactEmail: formData.contactEmail
-          });
+        if (!formData.name?.trim()) {
           toast.error('Error', 'Please fill all required fields');
           return;
         }
 
         const bankData = {
           name: formData.name.trim(),
-          type: formData.type,
-          contactEmail: formData.contactEmail.trim(),
+          type: formData.type || 'bank',
+          loanTypes: formData.loanTypes || [],
           status: formData.status || 'active',
         };
-
-        // Add optional fields only if they have values
-        if (formData.contactMobile?.trim()) {
-          bankData.contactMobile = formData.contactMobile.trim();
-        }
-        if (formData.contactPerson?.trim()) {
-          bankData.contactPerson = formData.contactPerson.trim();
-        }
-
-        // Add custom fields if they exist
-        if (formData.customFields && Object.keys(formData.customFields).length > 0) {
-          bankData.customFields = formData.customFields;
-        }
-
-        console.log('🔍 DEBUG: Final bank data to send:', JSON.stringify(bankData, null, 2));
-        console.log('🔍 DEBUG: Required fields check:', {
-          hasName: !!bankData.name,
-          hasType: !!bankData.type,
-          hasContactEmail: !!bankData.contactEmail
-        });
 
         const response = await api.banks.create(bankData)
         // #region agent log
@@ -284,6 +259,17 @@ const Banks = () => {
     { value: 'all', label: 'All Status' },
     { value: 'active', label: 'Active' },
     { value: 'inactive', label: 'Inactive' },
+  ]
+
+  const loanTypeOptions = [
+    { value: 'all', label: 'All Loan Types' },
+    { value: 'personal_loan', label: 'Personal Loan' },
+    { value: 'home_loan', label: 'Home Loan' },
+    { value: 'business_loan', label: 'Business Loan' },
+    { value: 'loan_against_property', label: 'Loan Against Property' },
+    { value: 'education_loan', label: 'Education Loan' },
+    { value: 'car_loan', label: 'Car Loan' },
+    { value: 'gold_loan', label: 'Gold Loan' },
   ]
 
   return (
@@ -392,7 +378,7 @@ const Banks = () => {
         </button>
         {filtersOpen && (
           <div className="border-t border-gray-200 p-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="sm:col-span-2 lg:col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                 <div className="relative">
@@ -404,6 +390,12 @@ const Banks = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
                   {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Loan Type</label>
+                <select value={loanTypeFilter} onChange={(e) => setLoanTypeFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
+                  {loanTypeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             </div>
@@ -442,10 +434,7 @@ const Banks = () => {
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact Person
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact Info
+                  Loan Types
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -482,13 +471,13 @@ const Banks = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : sortedBanks.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                     No banks found
                   </td>
                 </tr>
@@ -505,12 +494,16 @@ const Banks = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-mono text-gray-900">{bank.type || bank.code || 'N/A'}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{bank.contactPerson || 'N/A'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{bank.contactEmail || bank.email || 'N/A'}</div>
-                        <div className="text-sm text-gray-500">{bank.contactMobile || bank.mobile || bank.phone || 'N/A'}</div>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {bank.loanTypes && bank.loanTypes.length > 0 ? bank.loanTypes.map((lt) => (
+                            <span key={lt} className="inline-block px-2 py-0.5 text-xs font-medium bg-primary-50 text-primary-800 rounded-full border border-primary-200">
+                              {lt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                            </span>
+                          )) : (
+                            <span className="text-sm text-gray-400">N/A</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{loanStats.total}</div>
@@ -602,26 +595,24 @@ const Banks = () => {
                 <p className="mt-1 text-sm text-gray-900">{selectedBank.name}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Bank Code</label>
-                <p className="mt-1 text-sm font-mono text-gray-900">{selectedBank.code}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Contact Person</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedBank.contactPerson}</p>
-              </div>
-              <div>
                 <label className="text-sm font-medium text-gray-500">Status</label>
                 <div className="mt-1">
                   <StatusBadge status={selectedBank.status} />
                 </div>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Contact Email</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedBank.contactEmail || selectedBank.email}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Contact Mobile</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedBank.contactMobile || selectedBank.phone}</p>
+            </div>
+
+            {/* Loan Types */}
+            <div>
+              <label className="text-sm font-medium text-gray-500">Loan Types</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedBank.loanTypes && selectedBank.loanTypes.length > 0 ? selectedBank.loanTypes.map((lt) => (
+                  <span key={lt} className="inline-block px-3 py-1 text-sm font-medium bg-primary-50 text-primary-800 rounded-full border border-primary-200">
+                    {lt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  </span>
+                )) : (
+                  <span className="text-sm text-gray-400">No loan types assigned</span>
+                )}
               </div>
             </div>
 

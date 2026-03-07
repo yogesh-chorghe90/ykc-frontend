@@ -486,6 +486,8 @@ export const api = {
       const queryString = new URLSearchParams(params).toString();
       return apiRequest(`/accountant-managers${queryString ? `?${queryString}` : ''}`);
     },
+    getContacts: () => apiRequest('/accountant-managers/contacts'),
+    getMyRegionalManager: () => apiRequest('/accountant-managers/regional-manager'),
     getById: (id) => apiRequest(`/accountant-managers/${id}`),
     create: (data) => apiRequest('/accountant-managers', {
       method: 'POST',
@@ -558,6 +560,32 @@ export const api = {
       return apiRequest(`/documents/${documentId}`, {
         method: 'DELETE',
       });
+    },
+    /**
+     * Open a document in a new browser tab.
+     * The server proxies the file (streams it), so we fetch with auth headers
+     * and create a local blob URL — no CORS or redirect issues.
+     */
+    open: async (documentId) => {
+      try {
+        const token = authService.getToken()
+        const rawBase = API_BASE_URL.replace(/\/api$/, '')
+        const downloadUrl = `${rawBase}/api/documents/${documentId}/download`
+
+        const res = await fetch(downloadUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+
+        if (!res.ok) throw new Error(`Server error: ${res.status}`)
+
+        const blob = await res.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        window.open(blobUrl, '_blank', 'noopener,noreferrer')
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+      } catch (err) {
+        console.error('openDocument error:', err)
+        toast.error('Error', 'Could not open file. Please try again.')
+      }
     },
   },
 

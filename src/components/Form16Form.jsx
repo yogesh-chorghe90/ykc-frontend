@@ -1,10 +1,21 @@
 import { useState, useEffect } from 'react'
-import { Upload, X, FileText } from 'lucide-react'
+import { Upload, X, FileText, Loader2 } from 'lucide-react'
 import api from '../services/api'
 import { toast } from '../services/toastService'
 import { authService } from '../services/auth.service'
 
 const PLACEHOLDER_URL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+const VALID_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]
+
+const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 
 const Form16Form = ({ form16, onSave, onClose }) => {
   const [formData, setFormData] = useState({
@@ -13,21 +24,21 @@ const Form16Form = ({ form16, onSave, onClose }) => {
     user: '',
   })
 
-  const [attachment, setAttachment] = useState(null)
-  const [attachmentPreview, setAttachmentPreview] = useState(null)
-  const [pendingFile, setPendingFile] = useState(null)
+  // pendingFiles: files chosen but not yet uploaded (new record flow)
+  const [pendingFiles, setPendingFiles] = useState([])
+  // uploadedFiles: already-uploaded docs (edit record flow)
+  const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState('')
   const [errors, setErrors] = useState({})
   const [users, setUsers] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(false)
+
   const userRole = authService.getUser()?.role
   const isAdminOrAccountant = userRole === 'super_admin' || userRole === 'accounts_manager'
 
   useEffect(() => {
-    // Fetch users if admin or accountant
-    if (isAdminOrAccountant && !form16) {
-      fetchUsers()
-    }
+    if (isAdminOrAccountant && !form16) fetchUsers()
   }, [isAdminOrAccountant, form16])
 
   useEffect(() => {
@@ -37,53 +48,50 @@ const Form16Form = ({ form16, onSave, onClose }) => {
         formType: form16.formType || 'form16',
         user: form16.user?._id || form16.user || '',
       })
-      if (form16.attachment) {
-        setAttachmentPreview(form16.attachment)
-      }
+      // Fetch existing documents for this form16 record
+      fetchExistingDocuments(form16._id || form16.id)
     } else {
-      // For new forms, set current user if not admin/accountant
       const currentUser = authService.getUser()
       setFormData({
         attachmentName: '',
         formType: 'form16',
         user: isAdminOrAccountant ? '' : (currentUser?._id || currentUser?.id || ''),
       })
-      setAttachment(null)
-      setAttachmentPreview(null)
-      setPendingFile(null)
+      setPendingFiles([])
+      setUploadedFiles([])
     }
   }, [form16, isAdminOrAccountant])
+
+  const fetchExistingDocuments = async (entityId) => {
+    try {
+      const resp = await api.documents.list('form16', entityId)
+      const docs = resp.data || resp || []
+      setUploadedFiles(Array.isArray(docs) ? docs : [])
+    } catch (e) {
+      console.error('Error fetching form16 documents:', e)
+    }
+  }
 
   const fetchUsers = async () => {
     try {
       setLoadingUsers(true)
-      // Fetch users from multiple roles: agent, franchise, relationship_manager, regional_manager
       const roles = ['agent', 'franchise', 'relationship_manager', 'regional_manager']
       const allUsers = []
-
-      // Fetch users for each role
       for (const role of roles) {
         try {
           const response = await api.users.getAll({ role, limit: 1000 })
           const data = response.data || response || []
-          if (Array.isArray(data)) {
-            allUsers.push(...data)
-          }
-        } catch (error) {
-          console.error(`Error fetching ${role} users:`, error)
-          // Continue with other roles even if one fails
+          if (Array.isArray(data)) allUsers.push(...data)
+        } catch (e) {
+          console.error(`Error fetching ${role} users:`, e)
         }
       }
-
-      // Remove duplicates based on _id
-      const uniqueUsers = allUsers.filter((user, index, self) =>
-        index === self.findIndex((u) => (u._id || u.id) === (user._id || user.id))
+      const uniqueUsers = allUsers.filter((user, i, self) =>
+        i === self.findIndex((u) => (u._id || u.id) === (user._id || user.id))
       )
-
       setUsers(uniqueUsers)
-    } catch (error) {
-      console.error('Error fetching users:', error)
-      setUsers([])
+    } catch (e) {
+      console.error('Error fetching users:', e)
     } finally {
       setLoadingUsers(false)
     }
@@ -91,92 +99,77 @@ const Form16Form = ({ form16, onSave, onClose }) => {
 
   const validate = () => {
     const newErrors = {}
-    if (isAdminOrAccountant && !formData.user) {
-      newErrors.user = 'User selection is required'
-    }
-    if (!attachment && !attachmentPreview && !pendingFile) {
-      newErrors.attachment = 'Attachment is required'
-    }
+    if (isAdminOrAccountant && !formData.user) newErrors.user = 'User selection is required'
+    const hasFiles = pendingFiles.length > 0 || uploadedFiles.length > 0
+    if (!hasFiles) newErrors.files = 'At least one file is required'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleFilesChange = async (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
 
-    const validTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/webp',
-      'image/gif',
-    ]
-    if (!validTypes.includes(file.type)) {
-      toast.error('Error', 'Please upload PDF or image (JPEG, PNG, WebP, GIF)')
-      return
+    const validFiles = []
+    for (const file of files) {
+      if (!VALID_TYPES.includes(file.type)) {
+        toast.error('Invalid File', `${file.name}: Only PDF or image files are allowed`)
+        continue
+      }
+      if (file.size > MAX_SIZE) {
+        toast.error('File Too Large', `${file.name}: Must be less than 10MB`)
+        continue
+      }
+      validFiles.push(file)
     }
 
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
-      toast.error('Error', 'File size must be less than 10MB')
-      return
-    }
+    if (!validFiles.length) return
 
+    // If editing an existing form16, upload immediately
     if (form16 && (form16._id || form16.id)) {
       setUploading(true)
-      try {
-        const fd = new FormData()
-        fd.append('file', file)
-        fd.append('entityType', 'form16')
-        fd.append('entityId', form16._id || form16.id)
-        fd.append('documentType', 'form16_attachment')
-        fd.append('description', 'Form 16 / TDS attachment')
-
-        const resp = await api.documents.upload(fd)
-        const doc = resp.data || resp
-        const fileUrl = doc.url || doc.filePath || doc.attachment
-
-        if (fileUrl) {
-          setAttachment({
-            url: fileUrl,
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type,
-          })
-          setAttachmentPreview(fileUrl)
-          setPendingFile(null)
-          toast.success('Success', 'File uploaded successfully')
-        } else {
-          throw new Error('Failed to get file URL')
+      let uploaded = 0
+      for (const file of validFiles) {
+        try {
+          setUploadProgress(`Uploading ${file.name} (${++uploaded}/${validFiles.length})...`)
+          const fd = new FormData()
+          fd.append('file', file)
+          fd.append('entityType', 'form16')
+          fd.append('entityId', form16._id || form16.id)
+          fd.append('documentType', 'form16_attachment')
+          fd.append('description', 'Form 16 / TDS attachment')
+          const resp = await api.documents.upload(fd)
+          const doc = resp.data || resp
+          setUploadedFiles(prev => [...prev, doc])
+        } catch (err) {
+          toast.error('Upload Failed', `${file.name}: ${err.message || 'Upload failed'}`)
         }
-      } catch (error) {
-        console.error('File upload error:', error)
-        toast.error('Upload Failed', error.message || 'Failed to upload file')
-      } finally {
-        setUploading(false)
       }
+      setUploading(false)
+      setUploadProgress('')
+      if (uploaded > 0) toast.success('Success', `${uploaded} file(s) uploaded`)
     } else {
-      setPendingFile(file)
-      const previewUrl = URL.createObjectURL(file)
-      setAttachmentPreview(previewUrl)
-      setAttachment({
-        url: previewUrl,
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-        isPending: true,
-      })
+      // Queue for upload on submit
+      setPendingFiles(prev => [...prev, ...validFiles])
     }
+
+    // Reset input so same file can be re-selected
+    e.target.value = ''
+    if (errors.files) setErrors(prev => ({ ...prev, files: '' }))
   }
 
-  const handleRemoveAttachment = () => {
-    setAttachment(null)
-    setAttachmentPreview(null)
-    setPendingFile(null)
-    if (attachment?.isPending && attachmentPreview) {
-      URL.revokeObjectURL(attachmentPreview)
+  const handleRemovePending = (index) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRemoveUploaded = async (doc) => {
+    const docId = doc._id || doc.id
+    try {
+      await api.documents.delete(docId)
+      setUploadedFiles(prev => prev.filter(d => (d._id || d.id) !== docId))
+      toast.success('Removed', 'File removed successfully')
+    } catch (e) {
+      toast.error('Error', 'Failed to remove file')
     }
   }
 
@@ -184,9 +177,10 @@ const Form16Form = ({ form16, onSave, onClose }) => {
     e.preventDefault()
     if (!validate()) return
 
-    if (pendingFile && !form16) {
-      setUploading(true)
-      try {
+    setUploading(true)
+    try {
+      if (!form16) {
+        // Create the form16 record first with a placeholder
         const initialData = {
           formType: formData.formType,
           attachmentName: formData.attachmentName?.trim() || '',
@@ -194,91 +188,70 @@ const Form16Form = ({ form16, onSave, onClose }) => {
           user: formData.user || undefined,
           status: 'active',
         }
-
         const createResp = await api.form16.create(initialData)
         const newForm = createResp.data || createResp
+        if (!newForm?._id) throw new Error('Failed to create record')
 
-        if (!newForm || !newForm._id) throw new Error('Failed to create record')
+        // Upload all pending files
+        let firstFileUrl = PLACEHOLDER_URL
+        for (let i = 0; i < pendingFiles.length; i++) {
+          const file = pendingFiles[i]
+          setUploadProgress(`Uploading ${file.name} (${i + 1}/${pendingFiles.length})...`)
+          const fd = new FormData()
+          fd.append('file', file)
+          fd.append('entityType', 'form16')
+          fd.append('entityId', newForm._id)
+          fd.append('documentType', 'form16_attachment')
+          fd.append('description', 'Form 16 / TDS attachment')
+          const uploadResp = await api.documents.upload(fd)
+          const doc = uploadResp.data || uploadResp
+          if (i === 0) firstFileUrl = doc.url || doc.filePath || PLACEHOLDER_URL
+        }
 
-        const fd = new FormData()
-        fd.append('file', pendingFile)
-        fd.append('entityType', 'form16')
-        fd.append('entityId', newForm._id || newForm.id)
-        fd.append('documentType', 'form16_attachment')
-        fd.append('description', 'Form 16 / TDS attachment')
-
-        const uploadResp = await api.documents.upload(fd)
-        const doc = uploadResp.data || uploadResp
-        const fileUrl = doc.url || doc.filePath || doc.attachment
-
-        if (!fileUrl) throw new Error('Failed to get file URL')
-
-        const updateData = {
+        // Update with first file's URL for backward compat
+        await api.form16.update(newForm._id, {
           formType: formData.formType,
           attachmentName: formData.attachmentName?.trim() || '',
-          attachment: fileUrl,
+          attachment: firstFileUrl,
           user: formData.user || undefined,
-          fileName: pendingFile.name,
-          fileSize: pendingFile.size,
-          mimeType: pendingFile.type,
+          fileName: pendingFiles[0]?.name,
+          fileSize: pendingFiles[0]?.size,
+          mimeType: pendingFiles[0]?.type,
+          status: 'active',
+        })
+
+        toast.success('Success', `Form 16 created with ${pendingFiles.length} file(s)`)
+        onClose()
+      } else {
+        // Update existing record metadata only (files already uploaded in handleFilesChange)
+        const submitData = {
+          formType: formData.formType,
+          attachmentName: formData.attachmentName?.trim() || '',
+          user: formData.user || undefined,
           status: 'active',
         }
-
-        await api.form16.update(newForm._id || newForm.id, updateData)
-
-        if (attachmentPreview && attachment?.isPending) {
-          URL.revokeObjectURL(attachmentPreview)
-        }
-
-        toast.success('Success', 'Form 16 created successfully')
-        onClose()
-      } catch (error) {
-        console.error('Error creating Form 16:', error)
-        toast.error('Error', error.message || 'Failed to create')
-      } finally {
-        setUploading(false)
+        onSave(submitData)
       }
-      return
+    } catch (error) {
+      console.error('Error submitting Form 16:', error)
+      toast.error('Error', error.message || 'Failed to save')
+    } finally {
+      setUploading(false)
+      setUploadProgress('')
     }
-
-    const attachmentData =
-      attachment ||
-      (form16?.attachment
-        ? {
-            url: form16.attachment,
-            fileName: form16.fileName,
-            fileSize: form16.fileSize,
-            mimeType: form16.mimeType,
-          }
-        : null)
-
-    if (!attachmentData || attachmentData.isPending) {
-      toast.error('Error', 'Please upload an attachment')
-      return
-    }
-
-    const submitData = {
-      formType: formData.formType,
-      attachmentName: formData.attachmentName?.trim() || '',
-      attachment: attachmentData.url,
-      user: formData.user || undefined,
-      fileName: attachmentData.fileName,
-      fileSize: attachmentData.fileSize,
-      mimeType: attachmentData.mimeType,
-      status: 'active',
-    }
-
-    onSave(submitData)
   }
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }))
+    setFormData(prev => ({ ...prev, [name]: value }))
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }))
   }
+
+  const totalFiles = uploadedFiles.length + pendingFiles.length
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* User selector */}
       {isAdminOrAccountant && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -303,98 +276,121 @@ const Form16Form = ({ form16, onSave, onClose }) => {
               ))}
             </select>
           )}
-          {errors.user && (
-            <p className="mt-1 text-sm text-red-600">{errors.user}</p>
-          )}
+          {errors.user && <p className="mt-1 text-sm text-red-600">{errors.user}</p>}
         </div>
       )}
 
+      {/* Attachment Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Attachment Name
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Attachment Name</label>
         <input
           type="text"
           name="attachmentName"
           value={formData.attachmentName}
           onChange={handleChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          placeholder="Enter attachment name"
+          placeholder="Enter attachment name (optional)"
         />
       </div>
 
+      {/* File Upload Zone */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Attachment <span className="text-red-500">*</span>
+          Files <span className="text-red-500">*</span>
+          {totalFiles > 0 && (
+            <span className="ml-2 text-xs font-normal text-gray-500">({totalFiles} file{totalFiles !== 1 ? 's' : ''} selected)</span>
+          )}
         </label>
 
-        {attachmentPreview ? (
-          <div className="relative">
-            <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-              <div className="flex items-center gap-4">
-                <div className="flex-shrink-0">
-                  <FileText className="w-12 h-12 text-gray-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    {attachment?.fileName || 'Form 16 Attachment'}
-                  </p>
-                  {attachment?.fileSize && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {(attachment.fileSize / 1024).toFixed(1)} KB
-                    </p>
-                  )}
+        <label
+          htmlFor="form16-files"
+          className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+            errors.files ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
+          } ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <div className="flex flex-col items-center justify-center py-4">
+            {uploading ? (
+              <>
+                <Loader2 className="w-7 h-7 mb-1 text-primary-600 animate-spin" />
+                <p className="text-sm text-primary-600 font-medium">{uploadProgress || 'Uploading...'}</p>
+              </>
+            ) : (
+              <>
+                <Upload className={`w-7 h-7 mb-1 ${errors.files ? 'text-red-400' : 'text-gray-400'}`} />
+                <p className="text-sm text-gray-500">
+                  <span className="font-semibold">Click to upload</span> or drag and drop
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">PDF, PNG, JPG, WebP, GIF · Max 10MB each · Multiple files allowed</p>
+              </>
+            )}
+          </div>
+          <input
+            id="form16-files"
+            type="file"
+            multiple
+            className="hidden"
+            accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif"
+            onChange={handleFilesChange}
+            disabled={uploading}
+          />
+        </label>
+        {errors.files && <p className="mt-1 text-sm text-red-600">{errors.files}</p>}
+      </div>
+
+      {/* Already-uploaded files (edit mode) */}
+      {uploadedFiles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Uploaded files</p>
+          {uploadedFiles.map((doc) => {
+            const docId = doc._id || doc.id
+            const name = doc.originalFileName || doc.fileName || 'File'
+            const sizeKB = doc.fileSize ? `${(doc.fileSize / 1024).toFixed(1)} KB` : ''
+            return (
+              <div key={docId} className="flex items-center gap-3 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                <FileText className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                  {sizeKB && <p className="text-xs text-gray-500">{sizeKB}</p>}
                 </div>
                 <button
                   type="button"
-                  onClick={handleRemoveAttachment}
-                  className="flex-shrink-0 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Remove attachment"
+                  onClick={() => handleRemoveUploaded(doc)}
+                  className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                  title="Remove"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <label
-              htmlFor="form16-attachment"
-              className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                errors.attachment
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
-              } ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <Upload
-                  className={`w-8 h-8 mb-2 ${
-                    errors.attachment ? 'text-red-500' : 'text-gray-400'
-                  }`}
-                />
-                <p className="mb-2 text-sm text-gray-500">
-                  <span className="font-semibold">Click to upload</span> or drag and drop
-                </p>
-                <p className="text-xs text-gray-500">PDF, PNG, JPG, WebP, GIF (MAX. 10MB)</p>
-              </div>
-              <input
-                id="form16-attachment"
-                type="file"
-                className="hidden"
-                accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                onChange={handleFileChange}
-                disabled={uploading}
-                onClick={(e) => (e.target.value = '')}
-              />
-            </label>
-            {errors.attachment && (
-              <p className="mt-1 text-sm text-red-600">{errors.attachment}</p>
-            )}
-            {uploading && <p className="mt-2 text-sm text-gray-600">Uploading...</p>}
-          </div>
-        )}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
+      {/* Pending files (create mode — not yet uploaded) */}
+      {pendingFiles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Ready to upload</p>
+          {pendingFiles.map((file, index) => (
+            <div key={index} className="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemovePending(index)}
+                className="flex-shrink-0 p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                title="Remove"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Footer */}
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <button
           type="button"
@@ -408,7 +404,12 @@ const Form16Form = ({ form16, onSave, onClose }) => {
           disabled={uploading}
           className="px-4 py-2 text-sm font-medium text-white bg-primary-900 rounded-lg hover:bg-primary-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {form16 ? 'Update' : 'Create Form 16'}
+          {uploading ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {uploadProgress || 'Uploading...'}
+            </span>
+          ) : form16 ? 'Update' : 'Create Form 16'}
         </button>
       </div>
     </form>
@@ -416,4 +417,3 @@ const Form16Form = ({ form16, onSave, onClose }) => {
 }
 
 export default Form16Form
-

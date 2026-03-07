@@ -22,11 +22,15 @@ import {
   UserCog,
   Percent,
   Wallet,
-  X
+  X,
+  BookUser,
 } from 'lucide-react'
 
 const Sidebar = ({ onMinimizeChange, isMobile = false, isOpen = false, onClose }) => {
   const [isMinimized, setIsMinimized] = useState(false)
+
+  const currentUser = authService.getUser()
+  const userRole = currentUser?.role || 'super_admin'
 
   useEffect(() => {
     if (isMobile) {
@@ -52,8 +56,6 @@ const Sidebar = ({ onMinimizeChange, isMobile = false, isOpen = false, onClose }
     }
   }
 
-  const userRole = authService.getUser()?.role || 'super_admin'
-
   const allMenuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: MapPin, label: 'Regional Manager', path: '/regional-managers', roles: ['super_admin'] },
@@ -61,6 +63,7 @@ const Sidebar = ({ onMinimizeChange, isMobile = false, isOpen = false, onClose }
     { icon: Users, label: 'Relationship Managers', path: '/relationship-managers', roles: ['super_admin', 'regional_manager', 'accounts_manager'] },
     { icon: UserCheck, label: 'Partners', path: '/agents', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'accounts_manager'] },
     { icon: UserCog, label: 'Sub Partners', path: '/sub-agents', roles: ['agent'] },
+    { icon: BookUser, label: 'My Contacts', path: '/my-contacts', roles: ['agent'] },
     { icon: Users, label: 'Leads', path: '/leads', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: Building2, label: 'Banks', path: '/banks', roles: ['super_admin', 'regional_manager', 'relationship_manager'] },
     { icon: UserCheck, label: 'Accountant Managers', path: '/accountant-managers', roles: ['super_admin'] },

@@ -13,8 +13,6 @@ import { canExportData } from '../utils/roleUtils'
 import { authService } from '../services/auth.service'
 import { downloadInvoicePDF, loadLogoFromPublic } from '../utils/generateInvoicePDF'
 import { preloadRobotoFont, getCachedRobotoFont } from '../utils/robotoFont'
-import API_BASE_URL from '../config/api'
-
 const Invoices = () => {
   const userRole = authService.getUser()?.role || ''
   const isAdmin = userRole === 'super_admin'
@@ -1025,8 +1023,7 @@ const Invoices = () => {
                       const fileSize = att.fileSize ? ` (${(att.fileSize / 1024).toFixed(2)} KB)` : ''
                       const handleViewAttachment = () => {
                         if (!docId) return
-                        const base = API_BASE_URL.replace(/\/api$/, '')
-                        window.open(`${base}/api/documents/${docId}/download`, '_blank', 'noopener')
+                        api.documents.open(docId)
                       }
                       return (
                         <div

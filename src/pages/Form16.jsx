@@ -14,6 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   FileDown,
+  Download,
+  Loader2,
 } from 'lucide-react'
 import api from '../services/api'
 import Modal from '../components/Modal'
@@ -36,6 +38,8 @@ const Form16 = () => {
   const [selectedForm, setSelectedForm] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, form: null })
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
+  const [detailDocuments, setDetailDocuments] = useState([])
+  const [loadingDetailDocs, setLoadingDetailDocs] = useState(false)
 
   const userRole = authService.getUser()?.role
   const isAdminOrAccountant = userRole === 'super_admin' || userRole === 'accounts_manager'
@@ -133,9 +137,23 @@ const Form16 = () => {
     setIsEditModalOpen(true)
   }
 
-  const handleView = (form) => {
+  const handleView = async (form) => {
     setSelectedForm(form)
+    setDetailDocuments([])
     setIsDetailModalOpen(true)
+    const entityId = form._id || form.id
+    if (entityId) {
+      setLoadingDetailDocs(true)
+      try {
+        const resp = await api.documents.list('form16', entityId)
+        const docs = resp.data || resp || []
+        setDetailDocuments(Array.isArray(docs) ? docs : [])
+      } catch (e) {
+        console.error('Error fetching form16 documents:', e)
+      } finally {
+        setLoadingDetailDocs(false)
+      }
+    }
   }
 
   const handleSave = async (formData) => {
@@ -209,24 +227,6 @@ const Form16 = () => {
             </div>
             <p className="text-xs sm:text-sm text-gray-600 mt-1">Manage Form 16 and TDS documents</p>
           </div>
-          {/* Export Button - Desktop Only */}
-          <button
-            onClick={() => {
-              const rows = sortedForms.map((f) => ({
-                'Attachment Name': f.attachmentName || 'N/A',
-                'Attachment Date': formatDate(f.attachmentDate),
-                'File Name': f.fileName || 'N/A',
-                'Created': formatDate(f.createdAt),
-              }))
-              exportToExcel(rows, `form16_export_${Date.now()}`, 'Form 16 / TDS')
-              toast.success('Export', `Exported ${rows.length} records to Excel`)
-            }}
-            disabled={sortedForms.length === 0}
-            className="hidden md:flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FileDown className="w-5 h-5" />
-            <span>Export to Excel</span>
-          </button>
         </div>
         
         {/* Primary Action Button - Full Width on Mobile (Admin/Accountant only) */}
@@ -552,6 +552,7 @@ const Form16 = () => {
         onClose={() => {
           setIsDetailModalOpen(false)
           setSelectedForm(null)
+          setDetailDocuments([])
         }}
         title="Form 16 Details"
         size="md"
@@ -560,41 +561,71 @@ const Form16 = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">Attachment Date</label>
-                <p className="mt-1 text-sm text-gray-900">
-                  {formatDate(selectedForm.attachmentDate)}
-                </p>
+                <label className="text-sm font-medium text-gray-500">Form Type</label>
+                <p className="mt-1 text-sm text-gray-900 capitalize">{selectedForm.formType?.replace('form', 'Form ') || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Attachment Name</label>
-                <p className="mt-1 text-sm text-gray-900">
-                  {selectedForm.attachmentName || 'N/A'}
-                </p>
+                <p className="mt-1 text-sm text-gray-900">{selectedForm.attachmentName || 'N/A'}</p>
               </div>
+              {selectedForm.user && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">User</label>
+                  <p className="mt-1 text-sm text-gray-900">{selectedForm.user?.name || selectedForm.user?.email || 'N/A'}</p>
+                </div>
+              )}
               <div>
-                <label className="text-sm font-medium text-gray-500">File Name</label>
-                <p className="mt-1 text-sm text-gray-900">
-                  {selectedForm.fileName || 'N/A'}
-                </p>
+                <label className="text-sm font-medium text-gray-500">Created</label>
+                <p className="mt-1 text-sm text-gray-900">{formatDate(selectedForm.createdAt)}</p>
               </div>
             </div>
-            {selectedForm.attachment && (
-              <div>
-                <label className="text-sm font-medium text-gray-500">Attachment</label>
-                <div className="mt-2">
-                  <a
-                    href={selectedForm.attachment}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary-600 hover:text-primary-800 underline text-sm"
-                  >
-                    View / Download
-                  </a>
+
+            {/* Files */}
+            <div className="border-t border-gray-200 pt-3">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Files
+                {detailDocuments.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-gray-500">({detailDocuments.length})</span>
+                )}
+              </label>
+              {loadingDetailDocs ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 py-3">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading files...
                 </div>
-              </div>
-            )}
+              ) : detailDocuments.length > 0 ? (
+                <div className="space-y-2">
+                  {detailDocuments.map((doc) => {
+                    const docId = doc._id || doc.id
+                    const name = doc.originalFileName || doc.fileName || 'File'
+                    const sizeKB = doc.fileSize ? `${(doc.fileSize / 1024).toFixed(1)} KB` : ''
+                    return (
+                      <div key={docId} className="flex items-center gap-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                          {sizeKB && <p className="text-xs text-gray-500">{sizeKB}</p>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => api.documents.open(docId)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors flex-shrink-0"
+                          title="View / Download"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          View
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 py-2">No files attached</p>
+              )}
+            </div>
+
             {isAdminOrAccountant && (
-              <div className="pt-4 border-t border-gray-200">
+              <div className="pt-3 border-t border-gray-200">
                 <button
                   onClick={() => {
                     setIsDetailModalOpen(false)
