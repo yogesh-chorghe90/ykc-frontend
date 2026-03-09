@@ -1280,17 +1280,6 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                 )}
               </div>
 
-              {/* Address - textarea, full width */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Address</label>
-                <textarea
-                  value={standard.address || ''}
-                  onChange={(e) => handleStandardChange('address', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                  rows={3}
-                />
-              </div>
-
               {/* Remark - required for bank leads */}
               {!isNewLead && (
                 <div>
