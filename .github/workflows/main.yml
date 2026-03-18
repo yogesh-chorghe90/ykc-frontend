@@ -1,26 +1,12 @@
-name: Deploy Frontend
+name: Test
 
 on:
   push:
-    paths:
-      - 'frontend/**'
     branches:
       - main
 
 jobs:
-  frontend:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Deploy Frontend
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.PORT }}
-          script: |
-            cd /root/frontend
-            git pull origin main
-            npm install
-            npm run build
+      - run: echo "Hello CI/CD"
