@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, DollarSign, CreditCard, PieChart } from 'lucide-react';
+import { TrendingUp, DollarSign, CreditCard, PieChart, Wallet } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
 
 const FinancialSummaryCards = ({ lead }) => {
@@ -47,7 +47,7 @@ const FinancialSummaryCards = ({ lead }) => {
             title: "Total Commission",
             value: formatCurrency(commissionAmount),
             subtitle: "Earned So Far",
-            icon: PieChart,
+            icon: Wallet,
             color: "blue",
             bgColor: "bg-blue-50",
             textColor: "text-blue-600",

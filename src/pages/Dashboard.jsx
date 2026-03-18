@@ -4,6 +4,7 @@ import {
   FileText,
   FileCheck,
   Building2,
+  Wallet,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts'
@@ -223,7 +224,7 @@ const Dashboard = () => {
             <StatCard
               title="Total Commission"
               value={`₹${((stats.totalRevenue || 0) / 1000).toFixed(1)}K`}
-              icon={IndianRupeeIcon}
+              icon={Wallet}
               color="green"
             />
           </div>
