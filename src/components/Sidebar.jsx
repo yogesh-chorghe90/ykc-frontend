@@ -64,7 +64,7 @@ const Sidebar = ({ onMinimizeChange, isMobile = false, isOpen = false, onClose }
     { icon: UserCheck, label: 'Partners', path: '/agents', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'accounts_manager'] },
     { icon: UserCog, label: 'Sub Partners', path: '/sub-agents', roles: ['agent'] },
     { icon: BookUser, label: 'My Contacts', path: '/my-contacts', roles: ['agent'] },
-    { icon: Users, label: 'Leads', path: '/leads', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
+    { icon: Users, label: 'Customers', path: '/leads', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },
     { icon: Building2, label: 'Banks', path: '/banks', roles: ['super_admin', 'regional_manager', 'relationship_manager'] },
     { icon: UserCheck, label: 'Accountant Managers', path: '/accountant-managers', roles: ['super_admin'] },
     { icon: FileText, label: 'Invoices', path: '/invoices', roles: ['super_admin', 'regional_manager', 'relationship_manager', 'franchise', 'agent', 'accounts_manager'] },

@@ -2,21 +2,43 @@ import React from 'react';
 import {
     User, CreditCard, DollarSign,
     Percent, CheckCircle2, AlertCircle,
-    Plus, Edit, Trash2, TrendingUp, PieChart, Calculator
+    Plus, Edit, Trash2, TrendingUp, PieChart, Calculator, FileText, Download
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
 
-const LeadExpandedDetails = ({ lead, onAddDisbursement, onViewHistory, onEditDisbursement, onDeleteDisbursement }) => {
+const LeadExpandedDetails = ({
+    lead,
+    onAddDisbursement,
+    onViewHistory,
+    onEditDisbursement,
+    onDeleteDisbursement,
+    leadInvoices = [],
+    onGenerateInvoice,
+    onDownloadInvoices,
+    generatingInvoiceKey = null,
+}) => {
     const history = lead.disbursementHistory || [];
     const loanAmount = lead.loanAmount || lead.amount || 0;
     const disbursedAmount = lead.disbursedAmount || 0;
     const remainingAmount = Math.max(0, loanAmount - disbursedAmount);
-    const commissionAmount = lead.commissionAmount || 0;
-    const commissionPercentage = lead.commissionPercentage || 0;
+
+    // Base partner commission % for this lead (same RM logic as AccountantLeads)
+    const rawAgentPct = parseFloat(lead.agentCommissionPercentage || 0) || 0;
+    const rawAssociatedPct = parseFloat(lead.commissionPercentage || 0) || 0;
+    const hasAssociatedName = !!(lead.associated?.name || lead.associatedName);
+    const hasSubAgent = !!(lead.subAgent?.name || lead.subAgentName);
+
+    let partnerBasePercentage = rawAgentPct;
+    if (partnerBasePercentage === 0 && rawAssociatedPct > 0 && hasAssociatedName && !hasSubAgent) {
+        partnerBasePercentage = rawAssociatedPct;
+    }
     
     // Calculate totals for disbursement history
     const totalDisbursed = history.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const totalCommission = history.reduce((sum, item) => sum + (item.commission || 0), 0);
+    const totalCommission = history.reduce((sum, item) => {
+        const amt = item.amount || 0;
+        return sum + (amt * partnerBasePercentage) / 100;
+    }, 0);
     const totalGST = history.reduce((sum, item) => sum + (item.gst || 0), 0);
 
     return (
@@ -107,27 +129,74 @@ const LeadExpandedDetails = ({ lead, onAddDisbursement, onViewHistory, onEditDis
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
                                         <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
-                                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Commission</th>
+                                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Partner Comm %</th>
+                                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Partner Comm Amt</th>
                                         <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">GST</th>
                                         <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Net Commission</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">UTR</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Bank Ref</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Action</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {history.map((item, index) => {
-                                        const netComm = (item.commission || 0) - (item.gst || 0);
+                                        const amount = item.amount || 0;
+                                        const partnerCommPct = partnerBasePercentage;
+                                        const commission = (amount * partnerCommPct) / 100;
+                                        const gst = item.gst || 0;
+                                        const netComm = commission - gst;
+                                        const dispId = item._id ? String(item._id) : null;
+                                        const disbursementInvoices = dispId
+                                            ? leadInvoices.filter((inv) => {
+                                                const id = inv.disbursementId ? String(inv.disbursementId) : null;
+                                                return id === dispId;
+                                            })
+                                            : [];
+                                        const hasAgentInvoice = disbursementInvoices.some((i) => i.invoiceType === 'agent');
+                                        const hasSubAgentInvoice = disbursementInvoices.some((i) => i.invoiceType === 'sub_agent');
+                                        const leadHasSubAgent = !!(lead.subAgent || lead.subAgentName);
+                                        const bothInvoicesExist = hasAgentInvoice && (!leadHasSubAgent || hasSubAgentInvoice);
+                                        const showDownload = bothInvoicesExist && disbursementInvoices.length > 0;
                                         return (
                                             <tr key={item._id || index} className="hover:bg-gray-50">
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{item.date || 'N/A'}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{item.date ? new Date(item.date).toLocaleDateString('en-IN') : 'N/A'}</td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-emerald-600">{formatCurrency(item.amount)}</td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-blue-600">{formatCurrency(item.commission)}</td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-orange-600">{formatCurrency(item.gst)}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-blue-600">
+                                                    {partnerCommPct.toFixed(2)}%
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-blue-600">{formatCurrency(commission)}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-orange-600">{formatCurrency(gst)}</td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-purple-600">{formatCurrency(netComm)}</td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{item.utr || 'N/A'}</td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{item.bankRef || 'N/A'}</td>
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                                    {onGenerateInvoice && onDownloadInvoices ? (
+                                                        showDownload ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => onDownloadInvoices(disbursementInvoices)}
+                                                                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 border border-emerald-200"
+                                                            >
+                                                                <Download size={14} />
+                                                                Download Invoice
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                disabled={generatingInvoiceKey === `${lead._id}-${item._id}`}
+                                                                onClick={() => onGenerateInvoice(lead._id, item._id)}
+                                                                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 border border-primary-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                <FileText size={14} />
+                                                                {generatingInvoiceKey === `${lead._id}-${item._id}` ? 'Generating…' : 'Generate Invoice'}
+                                                            </button>
+                                                        )
+                                                    ) : (
+                                                        <span className="text-gray-400">—</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                                     <button 
                                                         onClick={() => onEditDisbursement(lead._id, item)}
@@ -165,7 +234,7 @@ const LeadExpandedDetails = ({ lead, onAddDisbursement, onViewHistory, onEditDis
                             <p className="text-xl font-bold text-emerald-600">{formatCurrency(totalDisbursed)}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                            <p className="text-sm text-gray-600">Total Commission</p>
+                            <p className="text-sm text-gray-600">Total Partner Commission</p>
                             <p className="text-xl font-bold text-blue-600">{formatCurrency(totalCommission)}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">

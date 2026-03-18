@@ -545,7 +545,7 @@ const Leads = () => {
       setLeadHistory(Array.isArray(historyData) ? historyData : [])
     } catch (error) {
       console.error('Error fetching lead history:', error)
-      toast.error('Error', 'Failed to load lead history')
+      toast.error('Error', 'Failed to load customer history')
       setLeadHistory([])
     } finally {
       setHistoryLoading(false)
@@ -663,7 +663,7 @@ const Leads = () => {
   const handleSave = async (formData) => {
     // Prevent double submission
     if (isSubmitting) {
-      toast.error('Error', 'Please wait, lead creation is already in progress')
+      toast.error('Error', 'Please wait, customer creation is already in progress')
       return
     }
 
@@ -754,7 +754,7 @@ const Leads = () => {
         // Update existing lead
         const leadId = selectedLead.id || selectedLead._id
         if (!leadId) {
-          toast.error('Error', 'Lead ID is missing')
+          toast.error('Error', 'Customer ID is missing')
           return
         }
         const response = await api.leads.update(leadId, leadData)
@@ -776,7 +776,7 @@ const Leads = () => {
         await fetchStaff()
 
         setIsEditModalOpen(false)
-        toast.success('Success', 'Lead updated successfully')
+        toast.success('Success', 'Customer updated successfully')
       } else {
         // Create new lead
         const createResponse = await api.leads.create(leadData)
@@ -789,14 +789,14 @@ const Leads = () => {
         await fetchStaff()
 
         setIsCreateModalOpen(false)
-        toast.success('Success', 'Lead created successfully')
+        toast.success('Success', 'Customer created successfully')
       }
       setSelectedLead(null)
     } catch (error) {
       console.error('Error saving lead:', error)
       // Only show toast if API error handler hasn't already shown it
       if (!error._toastShown) {
-        toast.error('Error', error.message || 'Failed to save lead')
+        toast.error('Error', error.message || 'Failed to save customer')
       }
     } finally {
       setIsSubmitting(false)
@@ -805,17 +805,17 @@ const Leads = () => {
 
   const handleStatusUpdate = async (leadId, newStatus) => {
     if (!leadId) {
-      console.error('Lead ID is missing')
-      toast.error('Error', 'Lead ID is missing')
+      console.error('Customer ID is missing')
+      toast.error('Error', 'Customer ID is missing')
       return
     }
     try {
       await api.leads.updateStatus(leadId, newStatus)
       await fetchLeads()
-      toast.success('Success', 'Lead status updated successfully')
+      toast.success('Success', 'Customer status updated successfully')
     } catch (error) {
       console.error('Error updating lead status:', error)
-      toast.error('Error', error.message || 'Failed to update lead status')
+      toast.error('Error', error.message || 'Failed to update customer status')
     }
   }
 
@@ -827,18 +827,18 @@ const Leads = () => {
     const lead = confirmDelete.lead
     const leadId = lead.id || lead._id
     if (!leadId) {
-      toast.error('Error', 'Lead ID is missing')
+      toast.error('Error', 'Customer ID is missing')
       return
     }
 
     try {
       await api.leads.delete(leadId)
       await fetchLeads()
-      toast.success('Success', `Lead "${lead.caseNumber || 'this lead'}" deleted successfully`)
+      toast.success('Success', `Customer "${lead.caseNumber || 'this customer'}" deleted successfully`)
       setConfirmDelete({ isOpen: false, lead: null })
     } catch (error) {
       console.error('Error deleting lead:', error)
-      toast.error('Error', error.message || 'Failed to delete lead')
+      toast.error('Error', error.message || 'Failed to delete customer')
     }
   }
 
@@ -857,7 +857,7 @@ const Leads = () => {
   const handleCommissionSave = async (lead) => {
     const leadId = lead.id || lead._id
     if (!leadId) {
-      toast.error('Error', 'Lead ID is missing')
+      toast.error('Error', 'Customer ID is missing')
       return
     }
 
@@ -1133,8 +1133,8 @@ const Leads = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-6 flex-shrink-0 gap-3 md:gap-0">
         <div className="flex-1">
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Leads Management</h1>
-          <p className="text-xs md:text-sm text-gray-600 mt-1">Manage and track all loan leads</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Customers Management</h1>
+          <p className="text-xs md:text-sm text-gray-600 mt-1">Manage and track all loan customers</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:gap-2">
           {canExportData() && (
@@ -1167,8 +1167,8 @@ const Leads = () => {
                 }
                 return base
               })
-              exportToExcel(rows, `leads_export_${Date.now()}`, 'Leads')
-              toast.success('Export', `Exported ${rows.length} leads to Excel`)
+              exportToExcel(rows, `customers_export_${Date.now()}`, 'Customers')
+              toast.success('Export', `Exported ${rows.length} customers to Excel`)
             }}
             disabled={sortedLeads.length === 0}
             title="Export currently filtered data to Excel"
@@ -1250,7 +1250,7 @@ const Leads = () => {
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors text-sm font-medium min-h-[44px] sm:min-h-0"
             >
               <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Create Lead</span>
+              <span>Create Customer</span>
             </button>
           )}
         </div>
@@ -1393,11 +1393,11 @@ const Leads = () => {
                   <button type="button" onClick={clearLeadsFilters} className="text-sm text-primary-600 hover:text-primary-800 font-medium">
                     Clear all filters
                   </button>
-                  <span className="text-sm text-gray-500">Showing {filteredLeads.length} of {leads.length} leads</span>
+                  <span className="text-sm text-gray-500">Showing {filteredLeads.length} of {leads.length} customers</span>
                 </>
               )}
               {!hasActiveFilters && (
-                <span className="text-sm text-gray-500">Total {leads.length} leads</span>
+                <span className="text-sm text-gray-500">Total {leads.length} customers</span>
               )}
               {totalFilteredLoanAmount > 0 && (
                 <span className="text-sm font-semibold text-gray-700">
@@ -1440,7 +1440,7 @@ const Leads = () => {
               ) : sortedLeads.length === 0 ? (
                 <tr className="border-b border-gray-200">
                   <td colSpan={visibleColumns.length} className="px-6 py-8 text-center text-gray-500">
-                    No leads found
+                    No customers found
                   </td>
                 </tr>
               ) : (
@@ -1541,8 +1541,12 @@ const Leads = () => {
                         return (
                           <div className="text-sm font-medium text-gray-900">
                             {(() => {
-                              const commission = lead.agentCommissionPercentage || 0;
-                              return typeof commission === 'number' ? commission.toFixed(2) + '%' : parseFloat(commission || 0).toFixed(2) + '%';
+                              // Keep Partner Comm % in the table in sync with details:
+                              // prefer agentCommissionPercentage, fall back to commissionPercentage
+                              const commission = lead.agentCommissionPercentage || lead.commissionPercentage || 0;
+                              return typeof commission === 'number'
+                                ? commission.toFixed(2) + '%'
+                                : parseFloat(commission || 0).toFixed(2) + '%';
                             })()}
                           </div>
                         )
@@ -2415,7 +2419,7 @@ const Leads = () => {
           <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
             <p className="text-sm text-gray-600">
               Showing <span className="font-medium">{sortedLeads.length}</span> of{' '}
-              <span className="font-medium">{sortedLeads.length}</span> leads
+              <span className="font-medium">{sortedLeads.length}</span> customers
             </p>
           </div>
         )}
@@ -2431,7 +2435,7 @@ const Leads = () => {
         ) : sortedLeads.length === 0 ? (
           <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">No leads found</p>
+            <p className="text-sm text-gray-500">No customers found</p>
           </div>
         ) : (
           sortedLeads.map((lead) => {
@@ -2556,7 +2560,7 @@ const Leads = () => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => { setIsCreateModalOpen(false); setIsSubmitting(false); }}
-        title="Create New Lead"
+        title="Create New Customer"
       >
         <LeadForm onSave={handleSave} onClose={() => { setIsCreateModalOpen(false); setIsSubmitting(false); }} isSubmitting={isSubmitting} />
       </Modal>
@@ -2569,7 +2573,7 @@ const Leads = () => {
           setSelectedLead(null)
           setIsSubmitting(false)
         }}
-        title="Edit Lead"
+        title="Edit Customer"
       >
         <LeadForm lead={selectedLead} onSave={handleSave} onClose={() => { setIsEditModalOpen(false); setIsSubmitting(false); }} isSubmitting={isSubmitting} />
       </Modal>
@@ -2581,7 +2585,7 @@ const Leads = () => {
           setIsDetailModalOpen(false)
           setSelectedLead(null)
         }}
-        title="Lead Details"
+        title="Customer Details"
         size="md"
       >
         {selectedLead && (
@@ -2610,7 +2614,7 @@ const Leads = () => {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Agent</label>
+                <label className="text-sm font-medium text-gray-500">Partner</label>
                 <p className="mt-1 text-sm text-gray-900">
                   {(() => {
                     if (selectedLead.agentName) return selectedLead.agentName;
@@ -2625,7 +2629,7 @@ const Leads = () => {
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Sub Agent</label>
+                <label className="text-sm font-medium text-gray-500">Sub Partner</label>
                 <p className="mt-1 text-sm text-gray-900">
                   {(() => {
                     // First check subAgentName field (stored directly on lead - most reliable)
@@ -2686,7 +2690,7 @@ const Leads = () => {
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Agent Commission %</label>
+                <label className="text-sm font-medium text-gray-500">Partner Commission %</label>
                 <p className="mt-1 text-sm text-gray-900">
                   {(() => {
                     const commission = selectedLead.agentCommissionPercentage || selectedLead.commissionPercentage || 0;
@@ -2695,7 +2699,7 @@ const Leads = () => {
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Agent Commission Amount</label>
+                <label className="text-sm font-medium text-gray-500">Partner Commission Amount</label>
                 <p className="mt-1 text-sm text-gray-900">
                   ₹{(selectedLead.agentCommissionAmount || selectedLead.commissionAmount || 0).toLocaleString()}
                 </p>
@@ -2837,7 +2841,7 @@ const Leads = () => {
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-gray-400 py-1">No attachments for this lead</p>
+                <p className="text-sm text-gray-400 py-1">No attachments for this customer</p>
               )}
             </div>
 
@@ -2875,8 +2879,8 @@ const Leads = () => {
         isOpen={confirmDelete.isOpen}
         onClose={() => setConfirmDelete({ isOpen: false, lead: null })}
         onConfirm={handleDeleteConfirm}
-        title="Delete Lead"
-        message={`Are you sure you want to delete lead "${confirmDelete.lead?.caseNumber || 'this lead'}"? This action cannot be undone.`}
+        title="Delete Customer"
+        message={`Are you sure you want to delete customer "${confirmDelete.lead?.caseNumber || 'this customer'}"? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
@@ -2911,7 +2915,7 @@ const Leads = () => {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
-                History - {selectedLead?.caseNumber || 'Lead'}
+                History - {selectedLead?.caseNumber || 'Customer'}
               </h3>
               <button
                 onClick={() => {
@@ -2931,7 +2935,7 @@ const Leads = () => {
               {historyLoading ? (
                 <div className="py-8 text-center text-gray-500">Loading history...</div>
               ) : leadHistory.length === 0 ? (
-                <div className="py-8 text-center text-gray-500">No history available for this lead.</div>
+                <div className="py-8 text-center text-gray-500">No history available for this customer.</div>
               ) : (
                 <div className="space-y-2">
                   {leadHistory.map((historyItem, index) => {
@@ -3006,7 +3010,7 @@ const Leads = () => {
                               </div>
                             ) : (
                               <div className="text-xs text-gray-500 italic text-center py-2">
-                                {historyItem.action === 'created' ? 'Lead was created' : 'No field changes recorded'}
+                                {historyItem.action === 'created' ? 'Customer was created' : 'No field changes recorded'}
                               </div>
                             )}
 

@@ -144,25 +144,27 @@ export const generateInvoicePDF = (invoiceData, companySettings = {}, robotoFont
   const sgstRate = companySettings.taxConfig?.sgstRate ?? 9;
   const tdsRate = invoiceData.tdsPercentage ?? companySettings.taxConfig?.defaultTdsRate ?? 2;
 
-  // Lead information
+  // Lead information; use disbursement amount when invoice is per-disbursement
   const lead = invoiceData.lead || {};
   const leadName = lead.customerName || lead.leadId || 'N/A';
   const bankName_lead = lead.bank?.name || 'N/A';
   const product = lead.loanType ? lead.loanType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A';
-  const amountDisbursed = lead.disbursedAmount || lead.loanAmount || 0;
-  
-  // Get payout rate - prioritize invoice data, then lead, then receiver
-  let payoutRate = 0;
-  if (invoiceData.invoiceType === 'sub_agent') {
-    // For SubAgent invoices, use the commission rate decided by the agent
-    payoutRate = lead.subAgentCommissionPercentage || invoiceData.subAgentCommissionPercentage || 0;
-  } else if (invoiceData.invoiceType === 'agent') {
-    // For Agent invoices, calculate remaining percentage (total - subAgent's share)
-    const agentTotalPercentage = lead.agentCommissionPercentage || invoiceData.agentCommissionPercentage || receiver?.commissionPercentage || 0;
-    const subAgentPercentage = lead.subAgentCommissionPercentage || 0;
-    payoutRate = agentTotalPercentage - subAgentPercentage; // Agent's remaining commission
-  } else {
-    payoutRate = lead.commissionPercentage || invoiceData.commissionPercentage || receiver?.commissionPercentage || 0;
+  const amountDisbursed = invoiceData.disbursementAmount != null && invoiceData.disbursementAmount > 0
+    ? Number(invoiceData.disbursementAmount)
+    : (lead.disbursedAmount || lead.loanAmount || 0);
+
+  // Payout rate: prefer invoice (disbursement-based) then lead
+  let payoutRate = invoiceData.commissionRate != null ? Number(invoiceData.commissionRate) : 0;
+  if (payoutRate === 0) {
+    if (invoiceData.invoiceType === 'sub_agent') {
+      payoutRate = lead.subAgentCommissionPercentage || invoiceData.subAgentCommissionPercentage || 0;
+    } else if (invoiceData.invoiceType === 'agent') {
+      const agentTotalPercentage = lead.agentCommissionPercentage || invoiceData.agentCommissionPercentage || receiver?.commissionPercentage || 0;
+      const subAgentPercentage = lead.subAgentCommissionPercentage || 0;
+      payoutRate = agentTotalPercentage - subAgentPercentage;
+    } else {
+      payoutRate = lead.commissionPercentage || invoiceData.commissionPercentage || receiver?.commissionPercentage || 0;
+    }
   }
 
   // Use commission amount from invoice if available, otherwise calculate
@@ -237,6 +239,10 @@ export const generateInvoicePDF = (invoiceData, companySettings = {}, robotoFont
   const addrText = receiverAddress && receiverAddress !== 'N/A' ? receiverAddress : '-';
   const addrLines = doc.splitTextToSize(addrText, colWidth);
   addrLines.forEach((line) => { addText(line, col1X, yPosition, { fontSize: 9 }); yPosition += lineH; });
+  addText(`PAN: ${na(receiverPAN)}`, col1X, yPosition, { fontSize: 9 });
+  yPosition += lineH;
+  addText(`GST: ${na(receiverGST)}`, col1X, yPosition, { fontSize: 9 });
+  yPosition += lineH;
   addText(`Mobile: ${receiverMobile}`, col1X, yPosition, { fontSize: 9 });
   yPosition += lineH;
   addText(`Email: ${receiverEmail}`, col1X, yPosition, { fontSize: 9 });
@@ -244,14 +250,18 @@ export const generateInvoicePDF = (invoiceData, companySettings = {}, robotoFont
   yPosition += lineH;
 
   yPosition = twoColStartY;
-  addText('Bill From (Party Details)', col2X, yPosition, { fontSize: 11, fontStyle: 'bold' });
+  addText('Party Details (Company who paid)', col2X, yPosition, { fontSize: 11, fontStyle: 'bold' });
   addLine(col2X, yPosition + 1, col2X + 70, yPosition + 1, DARK_GRAY);
   yPosition += sectionTitleH + 2;
   addText(companyName, col2X, yPosition, { fontSize: 11, fontStyle: 'bold' });
   yPosition += lineH;
   const compAddrLines = doc.splitTextToSize(companyAddress, colWidth);
   compAddrLines.forEach((line) => { addText(line, col2X, yPosition, { fontSize: 9 }); yPosition += lineH; });
-  addText(`GST No.: ${companyGST}`, col2X, yPosition, { fontSize: 9 });
+  addText(`GST Number: ${companyGST}`, col2X, yPosition, { fontSize: 9 });
+  yPosition += lineH;
+  addText(`PAN Number: ${na(companyPAN)}`, col2X, yPosition, { fontSize: 9 });
+  yPosition += lineH;
+  addText(`Email: ${companyEmail}`, col2X, yPosition, { fontSize: 9 });
   yPosition += lineH;
   addText(`Mobile: ${companyMobile}`, col2X, yPosition, { fontSize: 9 });
   yPosition = Math.max(leftColEndY, yPosition) + 8;
@@ -277,9 +287,18 @@ export const generateInvoicePDF = (invoiceData, companySettings = {}, robotoFont
   };
   let xCur = tableLeft;
   const colPos = [];
-  const headers = ['Sr no.', 'Customer name', 'Bank', 'Product Type', 'Amount', 'Payout%', 'Gross Payout'];
-  if (!isNormalGSTUser) headers.push('GST (18%)');
-  headers.push('TDS(2%)', 'Net Payout');
+  // Shorter, horizontal-friendly column labels to avoid overlap
+  const headers = [
+    'Sr No',
+    'Customer / Lead',
+    'Bank',
+    'Product',
+    'Amt Disbursed',
+    'Payout %',
+    'Taxable Amt',
+  ];
+  if (!isNormalGSTUser) headers.push('GST');
+  headers.push('TDS', 'Gross Value');
   colKeys.forEach((k, i) => {
     const w = i === colKeys.length - 1 ? tableRight - xCur : colW[k];
     colPos.push({ key: k, x: xCur, w, right: ['amount', 'payoutPct', 'grossPayout', 'gst', 'tds', 'netPayout'].includes(k) });
@@ -323,17 +342,17 @@ export const generateInvoicePDF = (invoiceData, companySettings = {}, robotoFont
   yPosition += BODY_ROW_HEIGHT;
   addLine(tableLeft, yPosition, tableRight, yPosition);
 
-  // ---------- BANK DETAILS (two columns) ----------
+  // ---------- BANK DETAILS ----------
   yPosition += 10;
-  addText('Partner Code & Bank Details', MARGIN, yPosition, { fontSize: 11, fontStyle: 'bold' });
-  addLine(MARGIN, yPosition + 1, MARGIN + 80, yPosition + 1, DARK_GRAY);
+  addText('Bank Details', MARGIN, yPosition, { fontSize: 11, fontStyle: 'bold' });
+  addLine(MARGIN, yPosition + 1, MARGIN + 50, yPosition + 1, DARK_GRAY);
   yPosition += 8;
   const bankColX = MARGIN;
-  addText(`Partner Code: ${na(cpCode)}`, bankColX, yPosition, { fontSize: 9 });
+  addText(`CP Code: ${na(cpCode)}`, bankColX, yPosition, { fontSize: 9 });
   yPosition += LINE_HEIGHT;
   addText(`Bank Name: ${na(bankName)}`, bankColX, yPosition, { fontSize: 9 });
   yPosition += LINE_HEIGHT;
-  addText(`Account No.: ${na(accountNumber)}`, bankColX, yPosition, { fontSize: 9 });
+  addText(`Account Number: ${na(accountNumber)}`, bankColX, yPosition, { fontSize: 9 });
   yPosition += LINE_HEIGHT;
   addText(`IFSC Code: ${na(ifsc)}`, bankColX, yPosition, { fontSize: 9 });
   yPosition += LINE_HEIGHT;
@@ -349,15 +368,14 @@ export const generateInvoicePDF = (invoiceData, companySettings = {}, robotoFont
     yPosition += 4;
   }
 
-  // ---------- FOOTER ----------
+  // ---------- SIGNATURE SECTION ----------
   const footerY = pageHeight - 40;
   yPosition = footerY;
   addLine(MARGIN, yPosition, tableRight, yPosition, BORDER_COLOR);
-  // Small gap above the signature label
   yPosition += 6;
-  addText('Authorised Signatory', tableRight, yPosition, { fontSize: 10, fontStyle: 'bold', align: 'right' });
+  addText('Authorized Signatory', tableRight, yPosition, { fontSize: 10, fontStyle: 'bold', align: 'right' });
   yPosition += 4;
-  addText(receiverName, tableRight, yPosition, { fontSize: 9, align: 'right' });
+  addText(`(${receiverName})`, tableRight, yPosition, { fontSize: 9, align: 'right' });
 
   return doc;
 };

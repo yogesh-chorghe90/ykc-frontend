@@ -224,7 +224,7 @@ const SubAgents = () => {
           className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
         >
           <Plus className="w-5 h-5" />
-          <span>Create Sub Agent</span>
+          <span>Create Sub Partner</span>
         </button>
       </div>
 
@@ -379,7 +379,7 @@ const SubAgents = () => {
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="Create New Sub Agent"
+        title="Create New Sub Partner"
       >
         <SubAgentForm onSave={handleSave} onClose={() => setIsCreateModalOpen(false)} isSaving={isSaving} />
       </Modal>
@@ -514,6 +514,8 @@ const SubAgentForm = ({ subAgent, onSave, onClose, isSaving = false }) => {
     email: subAgent?.email || '',
     phone: subAgent?.phone || subAgent?.mobile || '',
     status: subAgent?.status || 'active',
+    // GST / Non-GST type for sub partner (uses same agentType field as main agents)
+    agentType: subAgent?.agentType || 'normal',
     kyc: subAgent?.kyc || { pan: '', aadhaar: '', gst: '' },
     bankDetails: subAgent?.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
   })
@@ -617,21 +619,60 @@ const SubAgentForm = ({ subAgent, onSave, onClose, isSaving = false }) => {
         </select>
       </div>
 
+      {/* GST Type */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Sub Partner Type (GST / Normal) <span className="text-red-500">*</span>
+        </label>
+        <select
+          name="agentType"
+          value={formData.agentType}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="normal">Normal</option>
+          <option value="GST">GST</option>
+        </select>
+      </div>
+
 
       {/* KYC Fields */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${formData.agentType === 'GST' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
-          <input type="text" name="kyc.pan" value={formData.kyc?.pan || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="PAN number" />
+          <input
+            type="text"
+            name="kyc.pan"
+            value={formData.kyc?.pan || ''}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            placeholder="PAN number"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar</label>
-          <input type="text" name="kyc.aadhaar" value={formData.kyc?.aadhaar || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Aadhaar number" />
+          <input
+            type="text"
+            name="kyc.aadhaar"
+            value={formData.kyc?.aadhaar || ''}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            placeholder="Aadhaar number"
+          />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
-          <input type="text" name="kyc.gst" value={formData.kyc?.gst || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="GST number" />
-        </div>
+        {formData.agentType === 'GST' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+            <input
+              type="text"
+              name="kyc.gst"
+              value={formData.kyc?.gst || ''}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              placeholder="GST number"
+            />
+          </div>
+        )}
       </div>
 
       {/* Bank Details */}

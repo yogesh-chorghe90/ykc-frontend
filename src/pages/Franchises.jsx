@@ -662,7 +662,7 @@ const Franchises = () => {
                   onClick={() => handleSort('totalLeads')}
                 >
                   <div className="flex items-center gap-2">
-                    Total Leads
+                    Total Customers
                     {getSortIcon('totalLeads')}
                   </div>
                 </th>
@@ -936,7 +936,7 @@ const Franchises = () => {
                       <p className="text-lg font-bold text-gray-900">{stats.agents}</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500">Total Leads</p>
+                      <p className="text-xs text-gray-500">Total Customers</p>
                       <p className="text-lg font-bold text-primary-900">{stats.leads}</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3 col-span-2">

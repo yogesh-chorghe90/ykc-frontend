@@ -397,7 +397,7 @@ const RelationshipManagers = () => {
                   City: r.address?.city || 'N/A',
                   State: r.address?.state || 'N/A',
                   Partners: stats.agents,
-                  Leads: stats.leads,
+                  Customers: stats.leads,
                   Revenue: stats.revenue,
                   Status: r.status || 'N/A',
                 }
@@ -509,7 +509,7 @@ const RelationshipManagers = () => {
                   <div className="flex items-center gap-2">Partners {getSortIcon('agents')}</div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('leads')}>
-                  <div className="flex items-center gap-2">Total Leads {getSortIcon('leads')}</div>
+                  <div className="flex items-center gap-2">Total Customers {getSortIcon('leads')}</div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('revenue')}>
                   <div className="flex items-center gap-2">Revenue {getSortIcon('revenue')}</div>
@@ -689,7 +689,7 @@ const RelationshipManagers = () => {
                 return (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500">Partners</p><p className="text-lg font-bold text-gray-900">{stats.agents}</p></div>
-                    <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500">Total Leads</p><p className="text-lg font-bold text-primary-900">{stats.leads}</p></div>
+                    <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500">Total Customers</p><p className="text-lg font-bold text-primary-900">{stats.leads}</p></div>
                     <div className="bg-gray-50 rounded-lg p-3 col-span-2"><p className="text-xs text-gray-500">Revenue</p><p className="text-lg font-bold text-gray-900">₹{stats.revenue.toLocaleString()}</p></div>
                   </div>
                 )

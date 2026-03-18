@@ -165,10 +165,10 @@ const Dashboard = () => {
       // Invoices are typically auto-generated when leads are completed
       // If invoice is missing, admin can generate it from the lead details page
       navigate(`/leads/${leadId}`)
-      toast.info('Info', 'Viewing lead details. Contact admin if invoice needs to be generated.')
+      toast.info('Info', 'Viewing customer details. Contact admin if invoice needs to be generated.')
     } catch (error) {
       console.error('Error navigating to lead:', error)
-      toast.error('Error', 'Failed to open lead details')
+      toast.error('Error', 'Failed to open customer details')
     }
   }
 
@@ -203,7 +203,7 @@ const Dashboard = () => {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             <StatCard
-              title="Total Leads"
+              title="Total Customers"
               value={stats.totalLeads || 0}
               icon={Users}
               color="blue"
@@ -233,7 +233,7 @@ const Dashboard = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
                 <h2 className="text-lg md:text-xl font-bold text-gray-900">Raise Payout Invoices</h2>
-                <span className="text-xs md:text-sm text-gray-600">{agentData.completedLeadsWithoutInvoices.length} completed leads without invoices</span>
+                <span className="text-xs md:text-sm text-gray-600">{agentData.completedLeadsWithoutInvoices.length} completed customers without invoices</span>
               </div>
               <div className="space-y-3 md:space-y-3">
                 {agentData.completedLeadsWithoutInvoices.slice(0, 5).map((lead) => (
@@ -257,7 +257,7 @@ const Dashboard = () => {
                     onClick={() => navigate('/leads?status=completed&hasInvoice=false')}
                     className="w-full text-sm text-primary-900 hover:text-primary-800 font-medium py-2"
                   >
-                    View All ({agentData.completedLeadsWithoutInvoices.length} leads)
+                    View All ({agentData.completedLeadsWithoutInvoices.length} customers)
                   </button>
                 )}
               </div>
@@ -339,7 +339,7 @@ const Dashboard = () => {
           {/* Summary Cards - Admin/Relationship Manager */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <StatCard
-              title="Total Leads"
+              title="Total Customers"
               value={totalLeads}
               icon={Users}
               color="blue"
@@ -370,7 +370,7 @@ const Dashboard = () => {
             />
           </div>
 
-          {/* Loan Distribution & Lead Conversion Funnel - Admin, Regional Manager, Relationship Manager & Franchise Owner */}
+          {/* Loan Distribution & Customer Conversion Funnel - Admin, Regional Manager, Relationship Manager & Franchise Owner */}
           {(authService.getUser()?.role === 'super_admin' || authService.getUser()?.role === 'regional_manager' || authService.getUser()?.role === 'relationship_manager' || authService.getUser()?.role === 'franchise') && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -435,7 +435,7 @@ const Dashboard = () => {
               </div>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Lead Conversion Funnel</h2>
+                  <h2 className="text-lg font-bold text-gray-900">Customer Conversion Funnel</h2>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setFunnelFilter('weekly')}

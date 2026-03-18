@@ -135,10 +135,10 @@ const AccountantOverview = () => {
                     )}
                 </div>
 
-                {/* Lead Conversion Funnel */}
+                {/* Customer Conversion Funnel */}
                 <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold text-gray-900">Lead Conversion Funnel</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Customer Conversion Funnel</h3>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setFunnelFilter('weekly')}
@@ -208,10 +208,10 @@ const AccountantOverview = () => {
 
             {/* Bottom Section: Tables */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* Recent Leads Table */}
+                {/* Recent Customers Table */}
                 <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden min-h-[400px]">
                     <div className="p-6 flex items-center justify-between border-b border-gray-100">
-                        <h3 className="text-lg font-bold text-gray-900">Recent Leads</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Recent Customers</h3>
                         <button className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">View All</button>
                     </div>
                     <div className="overflow-x-auto">
@@ -225,7 +225,7 @@ const AccountantOverview = () => {
                             <tbody className="divide-y divide-gray-50">
                                 {recentLeads.length === 0 ? (
                                     <tr>
-                                        <td colSpan="2" className="px-6 py-8 text-center text-gray-500">No recent leads found</td>
+                                        <td colSpan="2" className="px-6 py-8 text-center text-gray-500">No recent customers found</td>
                                     </tr>
                                 ) : (
                                     recentLeads.map((lead) => (

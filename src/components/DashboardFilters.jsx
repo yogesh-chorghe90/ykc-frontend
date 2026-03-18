@@ -291,7 +291,7 @@ export default function DashboardFilters({ filters = {}, onApply, onReset, role 
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lead status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Customer status</label>
               <select
                 value={local.leadStatus || ''}
                 onChange={(e) => handleChange('leadStatus', e.target.value)}

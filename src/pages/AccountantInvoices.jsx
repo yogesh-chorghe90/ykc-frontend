@@ -298,7 +298,7 @@ const AccountantInvoices = () => {
   const handleSave = async (formData) => {
     try {
       if (!formData.lead) {
-        toast.error('Error', 'Lead is required')
+        toast.error('Error', 'Customer is required')
         return
       }
       if (!formData.agent) {
@@ -599,7 +599,7 @@ const AccountantInvoices = () => {
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Lead
+                  Customer
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -888,7 +888,7 @@ const AccountantInvoices = () => {
                   <p className="mt-1 text-sm text-gray-900 capitalize">{invoice.invoiceType || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Lead Name</label>
+                  <label className="text-sm font-medium text-gray-500">Customer Name</label>
                   <p className="mt-1 text-sm text-gray-900">
                     {(() => {
                       if (invoice.lead && typeof invoice.lead === 'object') {

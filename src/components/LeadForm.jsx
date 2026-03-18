@@ -822,7 +822,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     <div className="space-y-6">
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
         <label className="block text-sm font-bold text-gray-700 mb-2">
-          {isNewLead ? 'Lead Type' : 'Select Bank'} {!isNewLead && '*'}
+          {isNewLead ? 'Customer Type' : 'Select Bank'} {!isNewLead && '*'}
         </label>
         <select
           value={selectedBank}
@@ -833,8 +833,8 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
           }}
           className="w-full px-4 py-3 border-2 border-primary-100 rounded-lg focus:border-primary-500 transition-colors bg-white text-lg font-medium"
         >
-          <option value="">-- Choose Lead Type or Bank --</option>
-          <option value={NEW_LEAD_OPTION}>New Lead</option>
+          <option value="">-- Choose Customer Type or Bank --</option>
+          <option value={NEW_LEAD_OPTION}>New Customer</option>
           {banks.map((b) => (
             <option key={b._id || b.id} value={b._id || b.id}>{b.name}</option>
           ))}
@@ -843,7 +843,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
 
       {!selectedBank && !lead && (
         <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-white">
-          <p className="text-gray-500 font-medium">Please select New Lead or a bank to load the form.</p>
+          <p className="text-gray-500 font-medium">Please select New Customer or a bank to load the form.</p>
         </div>
       )}
 
@@ -856,12 +856,12 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
           ) : (isAgent && leadFormDef) ? (
             <div className="space-y-8 p-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Sub-Agent Selection Dropdown - For agents when creating new leads */}
+                {/* Sub Partner Selection Dropdown - For agents when creating new leads */}
                 {isAgent && !lead && (
                   <>
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        Select Sub Agent (Optional)
+                        Select Sub Partner (Optional)
                       </label>
                       <select
                         value={selectedSubAgentId}
@@ -869,18 +869,18 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                         disabled={loadingSubAgents}
                       >
-                        <option value="">-- Select Sub Agent --</option>
+                        <option value="">-- Select Sub Partner --</option>
                         {subAgents.map((subAgent) => (
                           <option key={subAgent._id || subAgent.id} value={subAgent._id || subAgent.id}>
-                            {subAgent.name || subAgent.email || 'Unknown Sub Agent'}
+                            {subAgent.name || subAgent.email || 'Unknown Sub Partner'}
                           </option>
                         ))}
                       </select>
                       {loadingSubAgents && (
-                        <p className="text-sm text-gray-500 mt-1">Loading sub-agents...</p>
+                        <p className="text-sm text-gray-500 mt-1">Loading sub-partners...</p>
                       )}
                       {!loadingSubAgents && subAgents.length === 0 && (
-                        <p className="text-sm text-gray-500 mt-1">No sub-agents available. Create sub-agents from Sub Agents page.</p>
+                        <p className="text-sm text-gray-500 mt-1">No sub-partners available. Create sub-partners from Sub Partners page.</p>
                       )}
                     </div>
 

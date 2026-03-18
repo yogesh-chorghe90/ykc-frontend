@@ -541,7 +541,7 @@ const Agents = () => {
           </div>
           <span className="text-gray-300 mx-1">|</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-gray-500 font-medium">Leads</span>
+            <span className="text-gray-500 font-medium">Customers</span>
             <span className="font-bold text-orange-600">{totalLeadsCount}</span>
           </div>
         </div>
@@ -562,7 +562,7 @@ const Agents = () => {
           color="green"
         />
         <StatCard
-          title="Total Leads"
+          title="Total Customers"
           value={totalLeadsCount}
           icon={Users}
           color="orange"
@@ -687,7 +687,7 @@ const Agents = () => {
                   onClick={() => handleSort('totalLeads')}
                 >
                   <div className="flex items-center gap-2">
-                    Total Leads
+                    Total Customers
                     {getSortIcon('totalLeads')}
                   </div>
                 </th>
@@ -696,7 +696,7 @@ const Agents = () => {
                   onClick={() => handleSort('activeLeads')}
                 >
                   <div className="flex items-center gap-2">
-                    Active Leads
+                    Active Customers
                     {getSortIcon('activeLeads')}
                   </div>
                 </th>
@@ -1023,12 +1023,12 @@ const Agents = () => {
                 return (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500">Total Leads</p>
+                      <p className="text-xs text-gray-500">Total Customers</p>
                       <p className="text-lg font-bold text-gray-900">{stats.total}</p>
                       <p className="text-xs text-gray-400 mt-1">From {leads?.length || 0} total leads</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500">Active Leads</p>
+                      <p className="text-xs text-gray-500">Active Customers</p>
                       <p className="text-lg font-bold text-primary-900">{stats.active}</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">

@@ -334,6 +334,10 @@ export const api = {
     generateFromLead: (leadId) => apiRequest(`/invoices/generate/${leadId}`, {
       method: 'POST',
     }),
+    generateForDisbursement: (data) => apiRequest('/invoices/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
     update: (id, data) => apiRequest(`/invoices/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

@@ -89,7 +89,7 @@ const AccountantDashboard = () => {
 
     const navItems = [
         { name: 'Overview', icon: LayoutDashboard },
-        { name: 'Leads', icon: Users },
+        { name: 'Customers', icon: Users },
         { name: 'Invoices', icon: FileText, badge: 3 },
         { name: 'Agents', icon: Briefcase },
         { name: 'Reports', icon: BarChart3 },
@@ -198,7 +198,7 @@ const AccountantDashboard = () => {
                         {/* Stats Grid */}
                         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                             <StatCard
-                                title="Total Leads"
+                                title="Total Customers"
                                 value={totalLeads.toString()}
                                 icon={TrendingUp}
                                 color="blue"
@@ -281,10 +281,10 @@ const AccountantDashboard = () => {
                                 )}
                             </div>
 
-                            {/* Lead Conversion Funnel */}
+                            {/* Customer Conversion Funnel */}
                             <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                                 <div className="flex items-center justify-between mb-6">
-                                    <h3 className="text-lg font-bold text-gray-900">Lead Conversion Funnel</h3>
+                                    <h3 className="text-lg font-bold text-gray-900">Customer Conversion Funnel</h3>
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => setFunnelFilter('weekly')}
@@ -352,10 +352,10 @@ const AccountantDashboard = () => {
                             </div>
                         </div>
 
-                        {/* Recent Leads Table */}
+                        {/* Recent Customers Table */}
                         <div className="lg:col-span-1 bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                             <div className="p-6 flex items-center justify-between border-b border-gray-100">
-                                <h3 className="text-lg font-bold text-gray-900">Recent Leads</h3>
+                                <h3 className="text-lg font-bold text-gray-900">Recent Customers</h3>
                                 <button className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">View All</button>
                             </div>
                             <div className="p-0">
@@ -424,7 +424,7 @@ const AccountantDashboard = () => {
                     </>
                 )}
 
-                {!loading && activeTab === 'Leads' && (
+                {!loading && activeTab === 'Customers' && (
                     <div className="w-full">
                         <AccountantLeads />
                     </div>

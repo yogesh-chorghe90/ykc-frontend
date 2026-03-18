@@ -139,7 +139,7 @@ const RaiseTicketForm = ({ onSuccess, onCancel }) => {
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Select Lead (optional)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Select Customer (optional)</label>
         <p className="text-xs text-gray-500 mb-1">Identify which lead this service request relates to (e.g. payment pending for a specific lead)</p>
         <select
           value={leadId}
@@ -152,7 +152,7 @@ const RaiseTicketForm = ({ onSuccess, onCancel }) => {
           ) : (
             leads.map((lead) => (
               <option key={lead._id || lead.id} value={lead._id || lead.id}>
-                {lead.customerName || lead.applicantMobile || lead.loanAccountNo || 'Lead'} ({lead.status || '—'})
+                {lead.customerName || lead.applicantMobile || lead.loanAccountNo || 'Customer'} ({lead.status || '—'})
               </option>
             ))
           )}
