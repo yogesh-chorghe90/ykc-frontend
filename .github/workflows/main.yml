@@ -1,4 +1,4 @@
-name: Deploy Frontend (YKC)
+name: YKC Deploy
 
 on:
   push:
@@ -6,24 +6,53 @@ on:
       - main
 
 jobs:
-  build-deploy:
+  frontend-deploy:
     runs-on: ubuntu-latest
-
+    name: Build & Deploy Frontend
     steps:
-      - name: Checkout Code
+      - name: Checkout Frontend Code
         uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
 
       - name: Install Dependencies
         run: npm install
 
-      - name: Build Project
+      - name: Build Frontend
         run: npm run build
 
-      - name: Upload Build to Server
+      - name: Deploy Frontend via SCP
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
+          port: 22
           source: "dist/*"
-          target: "/var/www/ykc-frontend"
+          target: "/var/www/ykcwealth"
+
+  backend-deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Backend
+    needs: frontend-deploy
+    steps:
+      - name: Checkout Backend Code
+        uses: actions/checkout@v3
+
+      - name: Deploy Backend via SSH
+        uses: appleboy/ssh-action@v1.6.1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            cd /root/backend
+            git reset --hard
+            git pull origin main
+            npm install --production
+            pm2 reload ykc-backend || pm2 start src/server.js --name ykc-backend
+            pm2 save
