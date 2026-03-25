@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, User, CreditCard } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
+import { formatLoanAccountNo, formatMobileNumber } from '../utils/identifierFormatters';
 
 const LeadDetailsCard = ({ isOpen, lead, onClose }) => {
   if (!isOpen || !lead) return null;
@@ -62,7 +63,12 @@ const LeadDetailsCard = ({ isOpen, lead, onClose }) => {
               <div>
                 <label className="text-xs font-semibold text-gray-500">Contact Number</label>
                 <p className="text-sm font-medium text-gray-900 mt-1">
-                  {viewLeadData.applicantMobile || viewLeadData.contactNumber || viewLeadData.formValues?.applicantMobile || viewLeadData.formValues?.mobile || 'N/A'}
+                  {formatMobileNumber(
+                    viewLeadData.applicantMobile ||
+                      viewLeadData.contactNumber ||
+                      viewLeadData.formValues?.applicantMobile ||
+                      viewLeadData.formValues?.mobile,
+                  ) || 'N/A'}
                 </p>
               </div>
               <div>
@@ -83,7 +89,7 @@ const LeadDetailsCard = ({ isOpen, lead, onClose }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-gray-500">Loan Account No</label>
-                <p className="text-sm font-medium text-gray-900 mt-1">{viewLeadData.loanAccountNo || 'N/A'}</p>
+                <p className="text-sm font-medium text-gray-900 mt-1">{formatLoanAccountNo(viewLeadData.loanAccountNo) || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500">Loan Type</label>
@@ -140,7 +146,7 @@ const LeadDetailsCard = ({ isOpen, lead, onClose }) => {
                 <div>
                   <label className="text-xs font-semibold text-gray-500">Contact</label>
                   <p className="text-sm font-medium text-gray-900 mt-1">
-                    {viewLeadData.agent?.mobile || viewLeadData.agent?.phone || viewLeadData.agentContact || 'N/A'}
+                    {formatMobileNumber(viewLeadData.agent?.mobile || viewLeadData.agent?.phone || viewLeadData.agentContact) || 'N/A'}
                   </p>
                 </div>
                 <div>
@@ -164,7 +170,7 @@ const LeadDetailsCard = ({ isOpen, lead, onClose }) => {
                 <div>
                   <label className="text-xs font-semibold text-gray-500">Contact</label>
                   <p className="text-sm font-medium text-gray-900 mt-1">
-                    {viewLeadData.smBm?.mobile || viewLeadData.smBmMobile || viewLeadData.asmMobile || 'N/A'}
+                    {formatMobileNumber(viewLeadData.smBm?.mobile || viewLeadData.smBmMobile || viewLeadData.asmMobile) || 'N/A'}
                   </p>
                 </div>
                 <div>

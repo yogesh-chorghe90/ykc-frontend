@@ -133,8 +133,6 @@ const LeadExpandedDetails = ({
                                         <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Partner Comm Amt</th>
                                         <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">GST</th>
                                         <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Net Commission</th>
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">UTR</th>
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Bank Ref</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Action</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
                                     </tr>
@@ -169,8 +167,6 @@ const LeadExpandedDetails = ({
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-blue-600">{formatCurrency(commission)}</td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-orange-600">{formatCurrency(gst)}</td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-purple-600">{formatCurrency(netComm)}</td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{item.utr || 'N/A'}</td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{item.bankRef || 'N/A'}</td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                                     {onGenerateInvoice && onDownloadInvoices ? (
                                                         showDownload ? (

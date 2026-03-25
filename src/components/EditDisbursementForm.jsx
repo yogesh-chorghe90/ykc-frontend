@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Calendar, Hash, CreditCard, Calculator, AlertCircle, CheckCircle, Save, Edit3 } from 'lucide-react';
+import { X, DollarSign, Calendar, Calculator, AlertCircle, CheckCircle, Save, Edit3 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
 
 // Prevent background scrolling when modal is open
@@ -24,8 +24,6 @@ const EditDisbursementForm = ({
     const [formData, setFormData] = useState({
         amount: '',
         date: '',
-        utr: '',
-        bankRef: '',
         commission: '',
         commissionType: 'amt', // 'amt' or 'percent'
         commissionPercent: '',
@@ -58,8 +56,6 @@ const EditDisbursementForm = ({
             setFormData({
                 amount: disbursement.amount || '',
                 date: disbursement.date ? new Date(disbursement.date).toISOString().split('T')[0] : '',
-                utr: disbursement.utr || '',
-                bankRef: disbursement.bankRef || '',
                 commission: disbursement.commission || '',
                 commissionType,
                 commissionPercent,
@@ -99,13 +95,6 @@ const EditDisbursementForm = ({
             case 'date':
                 if (!value) {
                     newErrors.date = 'Date is required';
-                }
-                break;
-            case 'utr':
-                if (!value) {
-                    newErrors.utr = 'UTR is required';
-                } else if (value.length < 5) {
-                    newErrors.utr = 'UTR must be at least 5 characters';
                 }
                 break;
             case 'commission':
@@ -176,7 +165,7 @@ const EditDisbursementForm = ({
         e.preventDefault();
         
         // Validate all fields
-        const requiredFields = ['amount', 'date', 'utr'];
+        const requiredFields = ['amount', 'date'];
         const isValid = requiredFields.every(field => 
             validateField(field, formData[field])
         );
@@ -197,7 +186,6 @@ const EditDisbursementForm = ({
             setTouched({
                 amount: true,
                 date: true,
-                utr: true,
                 commission: true,
                 gst: true
             });
@@ -208,8 +196,6 @@ const EditDisbursementForm = ({
         const submissionData = {
             amount: parseFloat(formData.amount),
             date: formData.date,
-            utr: formData.utr,
-            bankRef: formData.bankRef,
             commission: formData.commissionType === 'percent' && formData.commissionPercent && formData.amount
                 ? parseFloat(((parseFloat(formData.amount) * parseFloat(formData.commissionPercent)) / 100).toFixed(2))
                 : (formData.commission ? parseFloat(formData.commission) : 0),
@@ -285,10 +271,6 @@ const EditDisbursementForm = ({
                                 <p className="font-medium">{new Date(disbursement.date).toLocaleDateString()}</p>
                             </div>
                             <div>
-                                <p className="text-blue-700">UTR</p>
-                                <p className="font-medium">{disbursement.utr}</p>
-                            </div>
-                            <div>
                                 <p className="text-blue-700">Amount</p>
                                 <p className="font-medium">{formatCurrency(disbursement.amount)}</p>
                             </div>
@@ -356,51 +338,6 @@ const EditDisbursementForm = ({
                                         {errors.date}
                                     </p>
                                 )}
-                            </div>
-
-                            {/* UTR */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    UTR Number *
-                                </label>
-                                <div className="relative">
-                                    <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        name="utr"
-                                        value={formData.utr}
-                                        onChange={handleInputChange}
-                                        onBlur={handleBlur}
-                                        className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                                            errors.utr && touched.utr ? 'border-red-500' : 'border-gray-300'
-                                        }`}
-                                        placeholder="Enter UTR number"
-                                    />
-                                </div>
-                                {errors.utr && touched.utr && (
-                                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                                        <AlertCircle className="w-4 h-4 mr-1" />
-                                        {errors.utr}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Bank Reference */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Bank Reference
-                                </label>
-                                <div className="relative">
-                                    <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        name="bankRef"
-                                        value={formData.bankRef}
-                                        onChange={handleInputChange}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                        placeholder="Enter bank reference"
-                                    />
-                                </div>
                             </div>
 
                             {/* Commission Type Selection */}

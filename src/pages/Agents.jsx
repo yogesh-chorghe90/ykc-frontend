@@ -9,6 +9,7 @@ import AgentForm from '../components/AgentForm'
 import StatCard from '../components/StatCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
+import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
 
 const Agents = () => {
   const [agents, setAgents] = useState([])
@@ -886,7 +887,7 @@ const Agents = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Phone</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedAgent.phone || selectedAgent.mobile || 'N/A'}</p>
+                <p className="mt-1 text-sm text-gray-900">{formatMobileNumber(selectedAgent.phone || selectedAgent.mobile) || 'N/A'}</p>
               </div>
               {!hideAssociated && (
                 <div>
@@ -965,11 +966,11 @@ const Agents = () => {
               <div className={`grid grid-cols-1 gap-4 ${selectedAgent.agentType === 'GST' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                 <div>
                   <label className="text-sm font-medium text-gray-500">PAN</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.kyc?.pan || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatPanNumber(selectedAgent.kyc?.pan) || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Aadhaar</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedAgent.kyc?.aadhaar || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatAadhaarNumber(selectedAgent.kyc?.aadhaar) || 'N/A'}</p>
                 </div>
                 {selectedAgent.agentType === 'GST' && (
                   <div>
@@ -990,7 +991,7 @@ const Agents = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Account Number</label>
-                  <p className="mt-1 text-sm text-gray-900 font-mono tracking-wide">{selectedAgent.bankDetails?.accountNumber || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900 font-mono tracking-wide">{formatBankAccountNumber(selectedAgent.bankDetails?.accountNumber) || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Bank Name</label>

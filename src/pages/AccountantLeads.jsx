@@ -157,8 +157,6 @@ const AccountantLeads = () => {
     const [formData, setFormData] = useState({
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        utr: '',
-        bankRef: '',
         commission: '',
         gst: '',
         notes: ''
@@ -342,35 +340,54 @@ const AccountantLeads = () => {
         try {
             const leadId = selectedLead._id || selectedLead.id;
 
-            // Map form data to backend API format (similar to Leads.jsx)
+            // Must match Leads.jsx handleSave — LeadForm sends agentCommission*, subAgent*, etc.
+            // A narrow mapping here previously dropped those fields so Partner / Sub Partner columns never updated.
+            const toOptionalNumber = (value) => {
+                if (value === '' || value === null || value === undefined) return undefined;
+                const parsed = parseFloat(value);
+                return Number.isNaN(parsed) ? undefined : parsed;
+            };
+
             const leadData = {
                 leadType: formData.leadType || 'bank',
                 caseNumber: formData.caseNumber?.trim() || undefined,
                 applicantMobile: formData.applicantMobile?.trim() || undefined,
                 applicantEmail: formData.applicantEmail?.trim() || undefined,
                 loanType: formData.loanType,
-                loanAmount: formData.loanAmount ? Number(formData.loanAmount) : undefined,
+                loanAmount: toOptionalNumber(formData.loanAmount),
                 loanAccountNo: formData.loanAccountNo?.trim() || undefined,
-                branch: formData.branch?.trim() || undefined,
-                dsaCode: formData.dsaCode?.trim() || undefined,
-                remarks: formData.remarks?.trim() || undefined,
-                bankId: formData.bankId || formData.bank,
-                bank: formData.bankId || formData.bank,
-                formValues: formData.formValues || undefined,
+                agent: formData.agentId || formData.agent || undefined,
+                associated: formData.associated || formData.associatedId || formData.franchiseId || undefined,
+                associatedModel: formData.associatedModel || (formData.franchiseId ? 'Franchise' : undefined),
+                bank: formData.bankId || formData.bank || undefined,
+                subAgent: formData.subAgent || undefined,
+                subAgentCommissionPercentage: toOptionalNumber(formData.subAgentCommissionPercentage),
+                subAgentCommissionAmount: toOptionalNumber(formData.subAgentCommissionAmount),
+                agentCommissionPercentage: toOptionalNumber(formData.agentCommissionPercentage),
+                agentCommissionAmount: toOptionalNumber(formData.agentCommissionAmount),
+                referralFranchise: formData.referralFranchise || undefined,
+                referralFranchiseCommissionPercentage: toOptionalNumber(formData.referralFranchiseCommissionPercentage),
+                referralFranchiseCommissionAmount: toOptionalNumber(formData.referralFranchiseCommissionAmount),
                 leadForm: formData.leadForm || undefined,
-                commissionPercentage: (formData.commissionPercentage !== undefined && formData.commissionPercentage !== null && formData.commissionPercentage !== '')
-                    ? parseFloat(formData.commissionPercentage)
-                    : (formData.commissionPercentage === 0 ? 0 : undefined),
-                commissionAmount: (formData.commissionAmount !== undefined && formData.commissionAmount !== null && formData.commissionAmount !== '')
-                    ? parseFloat(formData.commissionAmount)
-                    : (formData.commissionAmount === 0 ? 0 : undefined),
+                formValues: formData.formValues || undefined,
+                documents: formData.documents || undefined,
+                customerName: formData.customerName?.trim() || undefined,
+                commissionBasis: formData.commissionBasis || undefined,
+                commissionPercentage: toOptionalNumber(formData.commissionPercentage),
+                commissionAmount: toOptionalNumber(formData.commissionAmount),
+                smBmName: formData.smBmName?.trim() || undefined,
+                smBmEmail: formData.smBmEmail?.trim() || undefined,
+                smBmMobile: formData.smBmMobile?.trim() || undefined,
+                asmName: formData.asmName?.trim() || undefined,
+                asmEmail: formData.asmEmail?.trim() || undefined,
+                asmMobile: formData.asmMobile?.trim() || undefined,
+                dsaCode: formData.dsaCode?.trim() || formData.codeUse?.trim() || undefined,
+                branch: formData.branch?.trim() || undefined,
+                remarks: formData.remarks?.trim() || undefined,
             };
 
-            // Remove undefined values
-            Object.keys(leadData).forEach(key => {
-                if (leadData[key] === undefined) {
-                    delete leadData[key];
-                }
+            Object.keys(leadData).forEach((key) => {
+                if (leadData[key] === undefined) delete leadData[key];
             });
 
             await api.leads.update(leadId, leadData);
@@ -440,8 +457,6 @@ const AccountantLeads = () => {
         setFormData({
             amount: '',
             date: new Date().toISOString().split('T')[0],
-            utr: '',
-            bankRef: '',
             commission: '',
             gst: '',
             notes: ''
@@ -754,6 +769,11 @@ const AccountantLeads = () => {
                                             <span>Account No</span>
                                         </div>
                                     </th>
+                                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap min-w-[120px]">
+                                        <div className="flex items-center gap-2">
+                                            <span>Advance Payment</span>
+                                        </div>
+                                    </th>
                                     <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap min-w-[100px] cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('loanType')}>
                                         <div className="flex items-center gap-2">
                                             <span>Loan Type</span>
@@ -938,6 +958,9 @@ const AccountantLeads = () => {
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs font-mono text-gray-600">
                                                     {lead.loanAccountNo || 'N/A'}
+                                                </td>
+                                                <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-700">
+                                                    {lead.advancePayment ? 'True' : 'False'}
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
                                                     <div className="text-xs sm:text-sm font-medium text-gray-900">
@@ -1183,7 +1206,7 @@ const AccountantLeads = () => {
                                                         >
                                                             <Edit size={16} />
                                                         </button>
-                                                        {(lead.status === 'disbursed' || lead.status === 'completed') && (
+                                                        {(lead.status === 'partial_disbursed' || lead.status === 'disbursed' || lead.status === 'completed') && (
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -1303,10 +1326,6 @@ const AccountantLeads = () => {
                                     <div>
                                         <p className="text-gray-600">Amount</p>
                                         <p className="font-medium text-red-600">{formatCurrency(disbursementToDelete.amount)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-600">UTR</p>
-                                        <p className="font-medium">{disbursementToDelete.utr}</p>
                                     </div>
                                     <div>
                                         <p className="text-gray-600">Commission</p>

@@ -7,6 +7,7 @@ import Modal from '../components/Modal'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
 import StatCard from '../components/StatCard'
+import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
 
 const SubAgents = () => {
   const [subAgents, setSubAgents] = useState([])
@@ -420,7 +421,7 @@ const SubAgents = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Phone</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedSubAgent.phone || selectedSubAgent.mobile || 'N/A'}</p>
+                <p className="mt-1 text-sm text-gray-900">{formatMobileNumber(selectedSubAgent.phone || selectedSubAgent.mobile) || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Status</label>
@@ -436,11 +437,11 @@ const SubAgents = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs font-medium text-gray-500">PAN</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedSubAgent.kyc?.pan || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatPanNumber(selectedSubAgent.kyc?.pan) || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500">Aadhaar</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedSubAgent.kyc?.aadhaar || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatAadhaarNumber(selectedSubAgent.kyc?.aadhaar) || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500">GST</label>
@@ -459,7 +460,7 @@ const SubAgents = () => {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500">Account Number</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedSubAgent.bankDetails?.accountNumber || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatBankAccountNumber(selectedSubAgent.bankDetails?.accountNumber) || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500">Bank Name</label>
@@ -512,26 +513,45 @@ const SubAgentForm = ({ subAgent, onSave, onClose, isSaving = false }) => {
   const [formData, setFormData] = useState({
     name: subAgent?.name || '',
     email: subAgent?.email || '',
-    phone: subAgent?.phone || subAgent?.mobile || '',
+    phone: formatMobileNumber(subAgent?.phone || subAgent?.mobile || ''),
     status: subAgent?.status || 'active',
     // GST / Non-GST type for sub partner (uses same agentType field as main agents)
     agentType: subAgent?.agentType || 'normal',
-    kyc: subAgent?.kyc || { pan: '', aadhaar: '', gst: '' },
-    bankDetails: subAgent?.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
+    kyc: {
+      ...(subAgent?.kyc || {}),
+      pan: formatPanNumber(subAgent?.kyc?.pan),
+      aadhaar: formatAadhaarNumber(subAgent?.kyc?.aadhaar),
+      gst: subAgent?.kyc?.gst || '',
+    },
+    bankDetails: {
+      ...(subAgent?.bankDetails || {}),
+      accountHolderName: subAgent?.bankDetails?.accountHolderName || '',
+      accountNumber: formatBankAccountNumber(subAgent?.bankDetails?.accountNumber),
+      bankName: subAgent?.bankDetails?.bankName || '',
+      branch: subAgent?.bankDetails?.branch || '',
+      ifsc: subAgent?.bankDetails?.ifsc || '',
+    },
   })
 
   const [errors, setErrors] = useState({})
 
   const handleChange = (e) => {
     const { name, value } = e.target
+    let formattedValue = value
+    if (name === 'phone' || name === 'mobile') {
+      formattedValue = formatMobileNumber(value)
+    }
     if (name.includes('.')) {
       const [parent, child] = name.split('.')
+      if (parent === 'kyc' && child === 'pan') formattedValue = formatPanNumber(value)
+      if (parent === 'kyc' && child === 'aadhaar') formattedValue = formatAadhaarNumber(value)
+      if (parent === 'bankDetails' && child === 'accountNumber') formattedValue = formatBankAccountNumber(value)
       setFormData((prev) => ({
         ...prev,
-        [parent]: { ...(prev[parent] || {}), [child]: value },
+        [parent]: { ...(prev[parent] || {}), [child]: formattedValue },
       }))
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }))
+      setFormData((prev) => ({ ...prev, [name]: formattedValue }))
     }
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }))

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatMobileNumber } from '../utils/identifierFormatters'
 
 const StaffForm = ({ staff, onSave, onClose }) => {
   const [formData, setFormData] = useState({
@@ -78,9 +79,10 @@ const StaffForm = ({ staff, onSave, onClose }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target
+    const formattedValue = name === 'phone' ? formatMobileNumber(value) : value
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: formattedValue,
     }))
     // Clear error when user starts typing
     if (errors[name]) {

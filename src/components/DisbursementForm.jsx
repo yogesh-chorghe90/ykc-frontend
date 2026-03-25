@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Calendar, Hash, CreditCard, Calculator, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, DollarSign, Calendar, Calculator, AlertCircle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/formatUtils';
 
 // Prevent background scrolling when modal is open
@@ -25,8 +25,6 @@ const DisbursementForm = ({
     const [formData, setFormData] = useState({
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        utr: '',
-        bankRef: '',
         commission: '',
         commissionType: 'amt', // 'amt' or 'percent'
         commissionPercent: '',
@@ -47,8 +45,6 @@ const DisbursementForm = ({
             setFormData({
                 amount: '',
                 date: new Date().toISOString().split('T')[0],
-                utr: '',
-                bankRef: '',
                 commission: '',
                 commissionType: 'amt',
                 commissionPercent: '',
@@ -102,16 +98,6 @@ const DisbursementForm = ({
                     newErrors.date = 'Date is required';
                 } else {
                     delete newErrors.date;
-                }
-                break;
-                
-            case 'utr':
-                if (!value) {
-                    newErrors.utr = 'UTR number is required';
-                } else if (value.length < 5) {
-                    newErrors.utr = 'UTR number must be at least 5 characters';
-                } else {
-                    delete newErrors.utr;
                 }
                 break;
                 
@@ -338,52 +324,6 @@ const DisbursementForm = ({
                                         {getFieldError('date')}
                                     </p>
                                 )}
-                            </div>
-                        </div>
-
-                        {/* Reference Numbers */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-2">
-                                    <Hash size={14} className="text-gray-500" />
-                                    UTR Number *
-                                </label>
-                                <input
-                                    type="text"
-                                    name="utr"
-                                    placeholder="e.g. HDFC000123456"
-                                    value={formData.utr}
-                                    onChange={handleInputChange}
-                                    onBlur={handleBlur}
-                                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all ${
-                                        getFieldError('utr') 
-                                            ? 'border-red-300 focus:ring-red-500/20' 
-                                            : 'border-gray-200'
-                                    }`}
-                                    disabled={loading}
-                                />
-                                {getFieldError('utr') && (
-                                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                                        <AlertCircle size={12} />
-                                        {getFieldError('utr')}
-                                    </p>
-                                )}
-                            </div>
-                            
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-2">
-                                    <CreditCard size={14} className="text-gray-500" />
-                                    Bank Reference No.
-                                </label>
-                                <input
-                                    type="text"
-                                    name="bankRef"
-                                    placeholder="e.g. REF882299"
-                                    value={formData.bankRef}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all"
-                                    disabled={loading}
-                                />
                             </div>
                         </div>
 

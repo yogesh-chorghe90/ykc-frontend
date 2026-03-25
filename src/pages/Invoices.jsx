@@ -408,6 +408,27 @@ const Invoices = () => {
     }
     return inv.franchise?.name || 'N/A'
   }
+
+  const getReceiverForInvoice = (inv) => {
+    if (!inv) return null
+    if (inv.invoiceType === 'sub_agent') return inv.subAgent
+    if (inv.invoiceType === 'franchise') return inv.franchise
+    return inv.agent
+  }
+
+  const getReceiverBankDetailsForExcel = (inv) => {
+    const receiver = getReceiverForInvoice(inv)
+    return receiver?.bankDetails || {}
+  }
+
+  const getGstAmountForExcel = (inv) => {
+    const receiver = getReceiverForInvoice(inv)
+    const gst = inv?.gstAmount ?? 0
+    const isGST =
+      (receiver?.agentType && receiver.agentType === 'GST') ||
+      (receiver?.franchiseType && receiver.franchiseType === 'GST')
+    return isGST && Number(gst) > 0 ? gst : ''
+  }
   const isOverdue = (dueDate) => {
     return new Date(dueDate) < new Date() && statusFilter !== 'paid'
   }
@@ -436,13 +457,20 @@ const Invoices = () => {
                 const rows = sortedInvoices.map((inv) => ({
                   'Invoice Number': inv.invoiceNumber || 'N/A',
                   'Loan Account No': getLeadName(inv.lead?._id || inv.lead?.id || inv.lead || inv.leadId) || 'N/A',
+                  'Invoice Type': inv.invoiceType || 'N/A',
                   Partner: inv.agent?.name || 'N/A',
                   Associated: getAssociatedForInvoice(inv),
                   'Commission Amount': inv.commissionAmount ?? '',
+                  'GST Amount': getGstAmountForExcel(inv),
                   'TDS Amount': inv.tdsAmount ?? '',
                   'Net Payable': inv.netPayable ?? '',
                   Status: inv.status || 'N/A',
                   'Invoice Date': inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString() : 'N/A',
+                  'Receiver Bank A/c Holder': getReceiverBankDetailsForExcel(inv).accountHolderName ?? '',
+                  'Receiver Account Number': getReceiverBankDetailsForExcel(inv).accountNumber ?? '',
+                  'Receiver IFSC': getReceiverBankDetailsForExcel(inv).ifsc ?? '',
+                  'Receiver Branch': getReceiverBankDetailsForExcel(inv).branch ?? '',
+                  'Receiver Bank Name': getReceiverBankDetailsForExcel(inv).bankName ?? '',
                 }))
                 exportToExcel(rows, `invoices_export_${Date.now()}`, 'Invoices')
                 toast.success('Export', `Exported ${rows.length} invoices to Excel`)

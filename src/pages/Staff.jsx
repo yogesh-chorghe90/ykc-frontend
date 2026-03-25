@@ -9,6 +9,7 @@ import StatCard from '../components/StatCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
 import { exportToExcel } from '../utils/exportExcel'
+import { formatMobileNumber } from '../utils/identifierFormatters'
 
 const Staff = () => {
   const [staff, setStaff] = useState([])
@@ -545,7 +546,7 @@ const Staff = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Phone</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedStaff.phone || selectedStaff.mobile || 'N/A'}</p>
+                <p className="mt-1 text-sm text-gray-900">{formatMobileNumber(selectedStaff.phone || selectedStaff.mobile) || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Status</label>

@@ -9,6 +9,7 @@ import RelationshipManagerForm from '../components/RelationshipManagerForm'
 import StatCard from '../components/StatCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
+import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
 import { exportToExcel } from '../utils/exportExcel'
 
 const RelationshipManagers = () => {
@@ -587,7 +588,7 @@ const RelationshipManagers = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Mobile</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedRM.mobile || 'N/A'}</p>
+                <p className="mt-1 text-sm text-gray-900">{formatMobileNumber(selectedRM.mobile) || 'N/A'}</p>
               </div>
 
               <div>
@@ -623,11 +624,11 @@ const RelationshipManagers = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">PAN</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedRM.kyc?.pan || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatPanNumber(selectedRM.kyc?.pan) || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Aadhaar</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedRM.kyc?.aadhaar || 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatAadhaarNumber(selectedRM.kyc?.aadhaar) || 'N/A'}</p>
                 </div>
               </div>
             </div>
@@ -640,7 +641,7 @@ const RelationshipManagers = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Account Number</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedRM.bankDetails?.accountNumber ? String(selectedRM.bankDetails.accountNumber) : 'N/A'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatBankAccountNumber(selectedRM.bankDetails?.accountNumber) || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Bank Name</label>

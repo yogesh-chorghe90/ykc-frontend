@@ -25,6 +25,8 @@ const Dashboard = () => {
     totalInvoices: 0,
     totalRevenue: 0,
     totalLoanAmount: 0,
+    advancePaymentCount: 0,
+    advancePaymentPendingAmount: 0,
   })
   const [relatedLists, setRelatedLists] = useState({
     recentLeads: [],
@@ -106,6 +108,8 @@ const Dashboard = () => {
           totalInvoices: data.totalInvoices || data.invoices?.total || 0,
           totalRevenue: data.totalRevenue || data.revenue || data.totalCommission || 0,
           totalLoanAmount: data.totalLoanAmount || 0,
+          advancePaymentCount: data.advancePaymentCount || 0,
+          advancePaymentPendingAmount: data.advancePaymentPendingAmount || 0,
         })
       }
 
@@ -173,7 +177,7 @@ const Dashboard = () => {
     }
   }
 
-  const { totalLeads, totalAgents, totalFranchises, totalRevenue, totalLoanAmount } = stats
+  const { totalLeads, totalAgents, totalFranchises, totalRevenue, totalLoanAmount, advancePaymentCount, advancePaymentPendingAmount } = stats
   const isAgent = userRole === 'agent'
   const isAccountant = userRole === 'accounts_manager'
 
@@ -338,7 +342,7 @@ const Dashboard = () => {
       ) : (
         <>
           {/* Summary Cards - Admin/Relationship Manager */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
             <StatCard
               title="Total Customers"
               value={totalLeads}
@@ -368,6 +372,12 @@ const Dashboard = () => {
               value={`₹${(totalRevenue / 1000).toFixed(1)}K`}
               icon={IndianRupeeIcon}
               color="purple"
+            />
+            <StatCard
+              title="Advance Payment"
+              value={`${formatInCrores(advancePaymentPendingAmount || 0)} (${advancePaymentCount || 0})`}
+              icon={Wallet}
+              color="indigo"
             />
           </div>
 

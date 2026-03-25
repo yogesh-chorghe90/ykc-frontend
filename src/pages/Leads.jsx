@@ -12,6 +12,7 @@ import { exportToExcel } from '../utils/exportExcel'
 import { canExportData } from '../utils/roleUtils'
 import AccountantLeads from './AccountantLeads'
 import { formatInCrores } from '../utils/formatUtils'
+import { formatMobileNumber } from '../utils/identifierFormatters'
 
 
 const Leads = () => {
@@ -139,6 +140,22 @@ const Leads = () => {
             }
           }
         }
+
+        // Ensure Advance Payment column exists in saved config
+        const hasAdvancePayment = updated.some(col => col.key === 'advancePayment')
+        if (!hasAdvancePayment) {
+          const loanAccountNoIndex = updated.findIndex(col => col.key === 'loanAccountNo')
+          if (loanAccountNoIndex !== -1) {
+            updated.splice(loanAccountNoIndex + 1, 0, { key: 'advancePayment', label: 'Advance Payment', visible: true, sortable: true })
+          } else {
+            const actionsIndex = updated.findIndex(col => col.key === 'actions')
+            if (actionsIndex !== -1) {
+              updated.splice(actionsIndex, 0, { key: 'advancePayment', label: 'Advance Payment', visible: true, sortable: true })
+            } else {
+              updated.push({ key: 'advancePayment', label: 'Advance Payment', visible: true, sortable: true })
+            }
+          }
+        }
         
         // Remove any duplicate columns based on key (keep first occurrence)
         const seenKeys = new Set()
@@ -179,6 +196,7 @@ const Leads = () => {
       { key: 'asm', label: 'ASM', visible: true, sortable: false },
       { key: 'branch', label: 'Branch', visible: true, sortable: true },
       { key: 'loanAccountNo', label: 'Loan Account No', visible: true, sortable: true },
+      { key: 'advancePayment', label: 'Advance Payment', visible: true, sortable: true },
       { key: 'disbursementDate', label: 'Disbursement Date', visible: true, sortable: true },
       { key: 'sanctionedDate', label: 'Sanctioned Date', visible: true, sortable: true },
       { key: 'codeUse', label: 'DSA Code', visible: true, sortable: true },
@@ -288,6 +306,20 @@ const Leads = () => {
           banksArrayLength: banks.length,
           agentsArrayLength: agents.length
         })
+
+        // Commission-focused debug to verify what frontend receives from backend
+        const commissionSnapshot = leadsData.slice(0, 10).map((l) => ({
+          leadId: l.id || l._id,
+          customerName: l.customerName || l.leadName || 'N/A',
+          status: l.status,
+          commissionPercentage: l.commissionPercentage,
+          commissionAmount: l.commissionAmount,
+          agentCommissionPercentage: l.agentCommissionPercentage,
+          agentCommissionAmount: l.agentCommissionAmount,
+          subAgentCommissionPercentage: l.subAgentCommissionPercentage,
+          subAgentCommissionAmount: l.subAgentCommissionAmount,
+        }))
+        console.log('🔍 DEBUG: Leads commission snapshot (from GET /leads):', commissionSnapshot)
       }
       setLeads(leadsData)
     } catch (error) {
@@ -690,6 +722,12 @@ const Leads = () => {
         }
       }
 
+      const toOptionalNumber = (value) => {
+        if (value === '' || value === null || value === undefined) return undefined
+        const parsed = parseFloat(value)
+        return Number.isNaN(parsed) ? undefined : parsed
+      }
+
       // Map form data to backend API format
       const leadData = {
         leadType: formData.leadType || 'bank',
@@ -697,8 +735,10 @@ const Leads = () => {
         applicantMobile: formData.applicantMobile?.trim() || undefined,
         applicantEmail: formData.applicantEmail?.trim() || undefined,
         loanType: formData.loanType,
-        loanAmount: formData.loanAmount ? parseFloat(formData.loanAmount) : undefined,
-        status: formData.status || 'logged',
+        loanAmount: toOptionalNumber(formData.loanAmount),
+        // Only send status when user has it in the form payload.
+        // Backend Lead schema has default 'logged' for creates, so omit on updates to avoid accidental overwrite.
+        status: formData.status,
         agent: formData.agentId || formData.agent || undefined,
         // Support both shapes: payload may include `associated` (from LeadForm) or `associatedId`
         associated: formData.associated || formData.associatedId || formData.franchiseId || undefined,
@@ -706,28 +746,29 @@ const Leads = () => {
         bank: formData.bankId || formData.bank || undefined,
         // Include subAgent if provided
         subAgent: formData.subAgent || undefined,
-        subAgentCommissionPercentage: formData.subAgentCommissionPercentage ? parseFloat(formData.subAgentCommissionPercentage) : undefined,
-        subAgentCommissionAmount: formData.subAgentCommissionAmount ? parseFloat(formData.subAgentCommissionAmount) : undefined,
+        subAgentCommissionPercentage: toOptionalNumber(formData.subAgentCommissionPercentage),
+        subAgentCommissionAmount: toOptionalNumber(formData.subAgentCommissionAmount),
+        agentCommissionPercentage: toOptionalNumber(formData.agentCommissionPercentage),
+        agentCommissionAmount: toOptionalNumber(formData.agentCommissionAmount),
         // Include referral franchise if provided
         referralFranchise: formData.referralFranchise || undefined,
-        referralFranchiseCommissionPercentage: formData.referralFranchiseCommissionPercentage ? parseFloat(formData.referralFranchiseCommissionPercentage) : undefined,
-        referralFranchiseCommissionAmount: formData.referralFranchiseCommissionAmount ? parseFloat(formData.referralFranchiseCommissionAmount) : undefined,
+        referralFranchiseCommissionPercentage: toOptionalNumber(formData.referralFranchiseCommissionPercentage),
+        referralFranchiseCommissionAmount: toOptionalNumber(formData.referralFranchiseCommissionAmount),
         leadForm: formData.leadForm || undefined,
         formValues: formData.formValues || undefined,
         documents: formData.documents || undefined,
         customerName: formData.customerName?.trim() || undefined,
         sanctionedDate: formData.sanctionedDate || undefined,
-        disbursedAmount: formData.disbursedAmount ? parseFloat(formData.disbursedAmount) : undefined,
+        disbursedAmount: toOptionalNumber(formData.disbursedAmount),
         disbursementDate: formData.disbursementDate || undefined,
         disbursementType: formData.disbursementType || undefined,
         loanAccountNo: formData.loanAccountNo?.trim() || undefined,
-        // Only Relationship Manager and Accounts Manager can set commission
-        ...(userRole === 'relationship_manager' || userRole === 'accounts_manager' ? {
-          commissionBasis: formData.commissionBasis || undefined,
-          commissionPercentage: formData.commissionPercentage ? parseFloat(formData.commissionPercentage) : undefined,
-          commissionAmount: formData.commissionAmount ? parseFloat(formData.commissionAmount) : undefined,
-        } : {}),
+        // Send commission fields whenever provided; backend enforces role permissions.
+        commissionBasis: formData.commissionBasis || undefined,
+        commissionPercentage: toOptionalNumber(formData.commissionPercentage),
+        commissionAmount: toOptionalNumber(formData.commissionAmount),
         smBm: formData.smBmId || undefined,
+        smBmName: formData.smBmName?.trim() || undefined,
         smBmEmail: formData.smBmEmail?.trim() || undefined,
         smBmMobile: formData.smBmMobile?.trim() || undefined,
         asmName: formData.asmName?.trim() || undefined,
@@ -863,22 +904,24 @@ const Leads = () => {
 
     try {
       const updateData = {}
-      const isFranchiseLead = lead.agentCommissionPercentage !== undefined || lead.agentCommissionAmount !== undefined
+      const isFranchiseLead = lead.associatedModel === 'Franchise'
+      const hasPercentage = commissionEditValues.percentage !== '' && commissionEditValues.percentage !== null && commissionEditValues.percentage !== undefined
+      const hasAmount = commissionEditValues.amount !== '' && commissionEditValues.amount !== null && commissionEditValues.amount !== undefined
       
       if (isFranchiseLead) {
         // For franchise-created leads, update agent commission fields
-        if (commissionEditValues.percentage) {
+        if (hasPercentage) {
           updateData.agentCommissionPercentage = parseFloat(commissionEditValues.percentage)
         }
-        if (commissionEditValues.amount) {
+        if (hasAmount) {
           updateData.agentCommissionAmount = parseFloat(commissionEditValues.amount)
         }
       } else {
         // For regular leads, update commission fields
-        if (commissionEditValues.percentage) {
+        if (hasPercentage) {
           updateData.commissionPercentage = parseFloat(commissionEditValues.percentage)
         }
-        if (commissionEditValues.amount) {
+        if (hasAmount) {
           updateData.commissionAmount = parseFloat(commissionEditValues.amount)
         }
       }
@@ -1141,6 +1184,7 @@ const Leads = () => {
             <button
               onClick={() => {
                 const rows = sortedLeads.map((lead) => {
+                  const partnerBank = lead.agent?.bankDetails || {};
                   const base = {
                   'Customer Name': lead.customerName || 'N/A',
                   'Loan Type': lead.loanType?.replace(/_/g, ' ') || 'N/A',
@@ -1155,6 +1199,10 @@ const Leads = () => {
                   'Disbursement Date': lead.disbursementDate ? new Date(lead.disbursementDate).toLocaleDateString() : 'N/A',
                   'Sanctioned Date': lead.sanctionedDate ? new Date(lead.sanctionedDate).toLocaleDateString() : 'N/A',
                   'DSA Code': lead.dsaCode || lead.codeUse || 'N/A',
+                  'Partner Account Holder Name': partnerBank.accountHolderName || 'N/A',
+                  'Partner IFSC No': partnerBank.ifsc || 'N/A',
+                  'Partner Branch': partnerBank.branch || 'N/A',
+                  'Partner Bank Name': partnerBank.bankName || 'N/A',
                   Remarks: lead.remarks || 'N/A',
                   Created: lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A',
                 }
@@ -1506,7 +1554,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Mobile:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.applicantMobile || lead.phone || lead.mobile || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900">{formatMobileNumber(lead.applicantMobile || lead.phone || lead.mobile) || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -1541,9 +1589,9 @@ const Leads = () => {
                         return (
                           <div className="text-sm font-medium text-gray-900">
                             {(() => {
-                              // Keep Partner Comm % in the table in sync with details:
-                              // prefer agentCommissionPercentage, fall back to commissionPercentage
-                              const commission = lead.agentCommissionPercentage || lead.commissionPercentage || 0;
+                              // agentCommissionPercentage is schema-defaulted to 0 on many leads.
+                              // Use logical fallback so regular commissionPercentage is shown when agent value is 0.
+                              const commission = lead.agentCommissionPercentage || lead.commissionPercentage || 0
                               return typeof commission === 'number'
                                 ? commission.toFixed(2) + '%'
                                 : parseFloat(commission || 0).toFixed(2) + '%';
@@ -1554,18 +1602,10 @@ const Leads = () => {
                         return (
                           <div className="text-sm font-medium text-gray-900">
                             {(() => {
-                              // Calculate automatically if amount is not set or is 0
-                              const storedAmount = lead.agentCommissionAmount || 0;
-                              if (storedAmount > 0) {
-                                return `₹${storedAmount.toLocaleString()}`;
-                              }
-                              // Calculate from percentage
-                              const commissionPercentage = lead.agentCommissionPercentage || 0;
-                              const baseAmount = lead.commissionBasis === 'disbursed' 
-                                ? (lead.disbursedAmount || 0)
-                                : (lead.loanAmount || lead.amount || 0);
-                              const calculatedAmount = (baseAmount * commissionPercentage) / 100;
-                              return `₹${Math.round(calculatedAmount).toLocaleString()}`;
+                              // agentCommissionAmount is schema-defaulted to 0 on many leads.
+                              // Use logical fallback so regular commissionAmount is shown when agent value is 0.
+                              const storedAmount = lead.agentCommissionAmount || lead.commissionAmount || 0
+                              return `₹${Number(storedAmount || 0).toLocaleString()}`
                             })()}
                           </div>
                         )
@@ -1582,18 +1622,8 @@ const Leads = () => {
                         return (
                           <div className="text-sm font-medium text-gray-900">
                             {(() => {
-                              // Calculate automatically if amount is not set or is 0
-                              const storedAmount = lead.subAgentCommissionAmount || 0;
-                              if (storedAmount > 0) {
-                                return `₹${storedAmount.toLocaleString()}`;
-                              }
-                              // Calculate from percentage
-                              const commissionPercentage = lead.subAgentCommissionPercentage || 0;
-                              const baseAmount = lead.commissionBasis === 'disbursed' 
-                                ? (lead.disbursedAmount || 0)
-                                : (lead.loanAmount || lead.amount || 0);
-                              const calculatedAmount = (baseAmount * commissionPercentage) / 100;
-                              return `₹${Math.round(calculatedAmount).toLocaleString()}`;
+                              const storedAmount = lead.subAgentCommissionAmount ?? 0
+                              return `₹${Number(storedAmount || 0).toLocaleString()}`
                             })()}
                           </div>
                         )
@@ -1610,18 +1640,8 @@ const Leads = () => {
                         return (
                           <div className="text-sm font-medium text-gray-900">
                             {(() => {
-                              // Calculate automatically if amount is not set or is 0
-                              const storedAmount = lead.commissionAmount || 0;
-                              if (storedAmount > 0) {
-                                return `₹${storedAmount.toLocaleString()}`;
-                              }
-                              // Calculate from percentage
-                              const commissionPercentage = lead.commissionPercentage || 0;
-                              const baseAmount = lead.commissionBasis === 'disbursed' 
-                                ? (lead.disbursedAmount || 0)
-                                : (lead.loanAmount || lead.amount || 0);
-                              const calculatedAmount = (baseAmount * commissionPercentage) / 100;
-                              return `₹${Math.round(calculatedAmount).toLocaleString()}`;
+                              const storedAmount = lead.commissionAmount ?? 0
+                              return `₹${Number(storedAmount || 0).toLocaleString()}`
                             })()}
                           </div>
                         )
@@ -1638,18 +1658,8 @@ const Leads = () => {
                         return (
                           <div className="text-sm font-medium text-gray-900">
                             {(() => {
-                              // Calculate automatically if amount is not set or is 0
-                              const storedAmount = lead.referralFranchiseCommissionAmount || 0;
-                              if (storedAmount > 0) {
-                                return `₹${storedAmount.toLocaleString()}`;
-                              }
-                              // Calculate from percentage
-                              const commissionPercentage = lead.referralFranchiseCommissionPercentage || 0;
-                              const baseAmount = lead.commissionBasis === 'disbursed' 
-                                ? (lead.disbursedAmount || 0)
-                                : (lead.loanAmount || lead.amount || 0);
-                              const calculatedAmount = (baseAmount * commissionPercentage) / 100;
-                              return `₹${Math.round(calculatedAmount).toLocaleString()}`;
+                              const storedAmount = lead.referralFranchiseCommissionAmount ?? 0
+                              return `₹${Number(storedAmount || 0).toLocaleString()}`
                             })()}
                           </div>
                         )
@@ -1738,7 +1748,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Mobile:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.agent?.mobile || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900">{formatMobileNumber(lead.agent?.mobile) || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -2306,6 +2316,8 @@ const Leads = () => {
                         return <div className="text-sm text-gray-900">{lead.branch || 'N/A'}</div>
                       case 'loanAccountNo':
                         return <div className="text-sm text-gray-900">{lead.loanAccountNo || 'N/A'}</div>
+                      case 'advancePayment':
+                        return <div className="text-sm text-gray-900">{lead.advancePayment ? 'True' : 'False'}</div>
                       case 'disbursementDate':
                         return <div className="text-sm text-gray-900">{lead.disbursementDate ? new Date(lead.disbursementDate).toLocaleDateString() : 'N/A'}</div>
                       case 'sanctionedDate':
@@ -2336,7 +2348,7 @@ const Leads = () => {
                                 <History className="w-4 h-4" />
                               </button>
                             )}
-                            {canSendDisbursementEmail && lead.status === 'disbursed' && (
+                            {canSendDisbursementEmail && ['partial_disbursed', 'disbursed', 'completed'].includes(lead.status) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -2455,6 +2467,8 @@ const Leads = () => {
                   return lead.bank?.name || getBankName(lead.bankId || lead.bank) || 'N/A'
                 case 'loanAccountNo':
                   return lead.loanAccountNo || 'N/A'
+                case 'advancePayment':
+                  return lead.advancePayment ? 'True' : 'False'
                 default:
                   return 'N/A'
               }

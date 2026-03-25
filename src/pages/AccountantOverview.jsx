@@ -13,6 +13,8 @@ import {
 } from 'recharts';
 import api from '../services/api';
 import { formatInCrores } from '../utils/formatUtils';
+import StatCard from '../components/StatCard';
+import { Wallet, Users, FileText, DollarSign } from 'lucide-react';
 
 const AccountantOverview = () => {
     const [dashboardData, setDashboardData] = useState(null);
@@ -56,6 +58,8 @@ const AccountantOverview = () => {
         totalInvoices = 0,
         totalRevenue = 0,
         totalLoanAmount = 0,
+        advancePaymentCount = 0,
+        advancePaymentPendingAmount = 0,
         loanDistribution = [],
         funnelData = [],
         recentLeads = [],
@@ -76,6 +80,20 @@ const AccountantOverview = () => {
                 <span>/</span>
                 <span className="text-gray-900 font-medium">Analytics</span>
             </div>
+
+            {/* Stats Grid */}
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
+                <StatCard title="Total Customers" value={totalLeads.toString()} icon={Users} color="blue" />
+                <StatCard title="Active Agents" value={activeAgents.toString()} icon={Users} color="green" />
+                <StatCard title="Total Invoices" value={totalInvoices.toString()} icon={FileText} color="orange" />
+                <StatCard title="Total Amount" value={formatInCrores(totalLoanAmount || 0)} icon={DollarSign} color="purple" />
+                <StatCard
+                    title="Advance Payment"
+                    value={`${formatInCrores(advancePaymentPendingAmount || 0)} (${advancePaymentCount || 0})`}
+                    icon={Wallet}
+                    color="indigo"
+                />
+            </section>
 
             {/* Middle Section: Chart and Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

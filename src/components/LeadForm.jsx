@@ -68,6 +68,10 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       loanAccountNo: lead?.loanAccountNo || leadFormValues.loanAccountNo || leadFormValues.loanAccountNumber || '',
       dsaCode: lead?.dsaCode || lead?.codeUse || leadFormValues.dsaCode || leadFormValues.codeUse || '',
       remarks: lead?.remarks || leadFormValues.remark || leadFormValues.remarks || '',
+      panNumber: lead?.panNumber || leadFormValues.panNumber || '',
+      aadhaarNumber: lead?.aadhaarNumber || leadFormValues.aadhaarNumber || '',
+      advancePayment: lead?.advancePayment === true,
+      smBmName: lead?.smBm?.name || lead?.smBmName || leadFormValues.smBmName || '',
       smBmEmail: lead?.smBmEmail || leadFormValues.smBmEmail || '',
       smBmMobile: lead?.smBmMobile || leadFormValues.smBmMobile || '',
       asmName: lead?.asmName || leadFormValues.asmName || '',
@@ -118,6 +122,10 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     }
     return '';
   });
+  const nonAgentSubPartners = useMemo(() => {
+    if (isAgent) return [];
+    return (agents || []).filter((a) => !!a.parentAgent);
+  }, [agents, isAgent]);
 
   // Refer Franchise selection
   const [franchises, setFranchises] = useState([]);
@@ -136,6 +144,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
   // Attachments state (for general attachments, separate from required documents)
   const [attachments, setAttachments] = useState([]);
   const [loadingAttachments, setLoadingAttachments] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // temp id for pre-uploading docs before lead is created
   const tempEntityId = useMemo(() => `temp-${Date.now()}-${Math.round(Math.random() * 1e6)}`, []);
@@ -250,7 +259,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
   // Fetch agents for all roles (except agents themselves)
   useEffect(() => {
     const loadAgents = async () => {
-      if (isAgent || lead) return; // Skip for agents and when editing
+      if (isAgent) return; // Skip only for agents
       try {
         setLoadingAgents(true);
         const resp = await api.agents.getAll();
@@ -264,7 +273,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       }
     };
     loadAgents();
-  }, [isAgent, lead]);
+  }, [isAgent]);
 
   // Fetch sub-agents for agents when creating leads
   useEffect(() => {
@@ -420,30 +429,89 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
   };
 
   const handleStandardChange = (k, v) => {
+    const validateStandardField = (key, rawValue, normalizedValue) => {
+      const raw = String(rawValue ?? '');
+      const normalized = String(normalizedValue ?? '');
+
+      if (!normalized) return '';
+
+      if (key === 'applicantMobile' || key === 'smBmMobile' || key === 'asmMobile') {
+        if (/\D/.test(raw)) return 'Only numbers are allowed';
+        if (raw.replace(/\D/g, '').length > 10) return 'Maximum 10 digits allowed';
+        if (normalized.length < 10) return 'Enter a 10-digit mobile number';
+        return '';
+      }
+
+      if (key === 'panNumber') {
+        if (/[^a-zA-Z0-9]/.test(raw)) return 'Only letters and numbers are allowed';
+        if (raw.replace(/[^a-zA-Z0-9]/g, '').length > 10) return 'PAN cannot exceed 10 characters';
+        if (normalized.length < 10) return 'PAN must be 10 characters (e.g. ABCDE1234F)';
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(normalized)) return 'Invalid PAN format (e.g. ABCDE1234F)';
+        return '';
+      }
+
+      if (key === 'aadhaarNumber') {
+        if (/\D/.test(raw)) return 'Only numbers are allowed';
+        if (raw.replace(/\D/g, '').length > 12) return 'Aadhaar cannot exceed 12 digits';
+        if (normalized.length < 12) return 'Aadhaar must be 12 digits';
+        return '';
+      }
+
+      if (key === 'loanAccountNo') {
+        if (/[^a-zA-Z0-9]/.test(raw)) return 'Only letters and numbers are allowed';
+        if (raw.replace(/[^a-zA-Z0-9]/g, '').length > 18) return 'Loan Account No cannot exceed 18 characters';
+        if (normalized.length < 9) return 'Loan Account No must be at least 9 characters';
+        return '';
+      }
+
+      return '';
+    };
+
+    const formatByField = (key, value) => {
+      if (value === undefined || value === null) return value;
+      const text = String(value);
+      if (key === 'applicantMobile' || key === 'smBmMobile' || key === 'asmMobile') {
+        return text.replace(/\D/g, '').slice(0, 10);
+      }
+      if (key === 'panNumber') {
+        return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+      }
+      if (key === 'aadhaarNumber') {
+        return text.replace(/\D/g, '').slice(0, 12);
+      }
+      if (key === 'loanAccountNo') {
+        // Keep alphanumeric LAN/account format and normalize to uppercase.
+        return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18);
+      }
+      return value;
+    };
+    const normalizedValue = formatByField(k, v);
+    const validationMessage = validateStandardField(k, v, normalizedValue);
+    setFieldErrors((prev) => ({ ...prev, [k]: validationMessage }));
     setStandard((p) => {
-      const updated = { ...p, [k]: v };
+      const updated = { ...p, [k]: normalizedValue };
       
       // Auto-calculate commission amount when percentage is filled
-      if (k === 'commissionPercentage' && v && p.loanAmount) {
+      if (k === 'commissionPercentage' && normalizedValue && p.loanAmount) {
         const loanAmount = parseFloat(p.loanAmount) || 0;
-        const percentage = parseFloat(v) || 0;
+        const percentage = parseFloat(normalizedValue) || 0;
         if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
           updated.commissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
         }
       }
       
       // Auto-calculate commission percentage when amount is filled
-      if (k === 'commissionAmount' && v && p.loanAmount) {
+      if (k === 'commissionAmount' && normalizedValue && p.loanAmount) {
         const loanAmount = parseFloat(p.loanAmount) || 0;
-        const amount = parseFloat(v) || 0;
+        const amount = parseFloat(normalizedValue) || 0;
         if (loanAmount > 0 && amount >= 0) {
           updated.commissionPercentage = ((amount / loanAmount) * 100).toFixed(2);
         }
       }
       
       // Auto-recalculate commission amount when loan amount changes (if percentage exists)
-      if (k === 'loanAmount' && v && p.commissionPercentage) {
-        const loanAmount = parseFloat(v) || 0;
+      if (k === 'loanAmount' && normalizedValue && p.commissionPercentage) {
+        const loanAmount = parseFloat(normalizedValue) || 0;
         const percentage = parseFloat(p.commissionPercentage) || 0;
         if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
           updated.commissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
@@ -451,62 +519,71 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       }
 
       // Auto-calculate agent commission amount when agent commission percentage changes (for franchise)
-      if (k === 'agentCommissionPercentage' && v && p.loanAmount) {
+      if (k === 'agentCommissionPercentage' && normalizedValue && p.loanAmount) {
         const loanAmount = parseFloat(p.loanAmount) || 0;
-        const percentage = parseFloat(v) || 0;
+        const percentage = parseFloat(normalizedValue) || 0;
         if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
           updated.agentCommissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
         }
       }
 
       // Auto-recalculate agent commission amount when loan amount changes (if agent commission percentage exists)
-      if (k === 'loanAmount' && v && p.agentCommissionPercentage) {
-        const loanAmount = parseFloat(v) || 0;
+      if (k === 'loanAmount' && normalizedValue && p.agentCommissionPercentage) {
+        const loanAmount = parseFloat(normalizedValue) || 0;
         const percentage = parseFloat(p.agentCommissionPercentage) || 0;
         if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
           updated.agentCommissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
         }
       }
 
+      // Auto-recalculate sub-partner commission amount when loan amount changes
+      if (k === 'loanAmount' && normalizedValue && p.subAgentCommissionPercentage) {
+        const loanAmount = parseFloat(normalizedValue) || 0;
+        const percentage = parseFloat(p.subAgentCommissionPercentage) || 0;
+        if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
+          updated.subAgentCommissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
+        }
+      }
+
       // Auto-calculate sub-agent commission amount when percentage changes (for agents)
-      if (k === 'subAgentCommissionPercentage' && v && p.loanAmount) {
+      if (k === 'subAgentCommissionPercentage' && normalizedValue && p.loanAmount) {
         const loanAmount = parseFloat(p.loanAmount) || 0;
-        const percentage = parseFloat(v) || 0;
+        const percentage = parseFloat(normalizedValue) || 0;
         if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
           updated.subAgentCommissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
         }
       }
 
       // Auto-calculate sub-agent commission percentage when amount changes
-      if (k === 'subAgentCommissionAmount' && v && p.loanAmount) {
+      if (k === 'subAgentCommissionAmount' && normalizedValue && p.loanAmount) {
         const loanAmount = parseFloat(p.loanAmount) || 0;
-        const amount = parseFloat(v) || 0;
+        const amount = parseFloat(normalizedValue) || 0;
         if (loanAmount > 0 && amount >= 0) {
           updated.subAgentCommissionPercentage = ((amount / loanAmount) * 100).toFixed(2);
         }
       }
 
       // Auto-calculate referral franchise commission amount when percentage changes
-      if (k === 'referralFranchiseCommissionPercentage' && v && p.loanAmount) {
+      if (k === 'referralFranchiseCommissionPercentage' && normalizedValue && p.loanAmount) {
         const loanAmount = parseFloat(p.loanAmount) || 0;
-        const percentage = parseFloat(v) || 0;
+        const percentage = parseFloat(normalizedValue) || 0;
         if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
           updated.referralFranchiseCommissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
         }
       }
 
       // Auto-calculate referral franchise commission percentage when amount changes
-      if (k === 'referralFranchiseCommissionAmount' && v && p.loanAmount) {
+      if (k === 'referralFranchiseCommissionAmount' && normalizedValue && p.loanAmount) {
         const loanAmount = parseFloat(p.loanAmount) || 0;
-        const amount = parseFloat(v) || 0;
+        const amount = parseFloat(normalizedValue) || 0;
         if (loanAmount > 0 && amount >= 0) {
           updated.referralFranchiseCommissionPercentage = ((amount / loanAmount) * 100).toFixed(2);
         }
       }
 
       // Auto-recalculate referral franchise commission amount when loan amount changes
-      if (k === 'loanAmount' && v && p.referralFranchiseCommissionPercentage) {
-        const loanAmount = parseFloat(v) || 0;
+      if (k === 'loanAmount' && normalizedValue && p.referralFranchiseCommissionPercentage) {
+        const loanAmount = parseFloat(normalizedValue) || 0;
         const percentage = parseFloat(p.referralFranchiseCommissionPercentage) || 0;
         if (loanAmount > 0 && percentage >= 0 && percentage <= 100) {
           updated.referralFranchiseCommissionAmount = ((loanAmount * percentage) / 100).toFixed(2);
@@ -515,7 +592,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
 
       return updated;
     });
-    if (k === 'bankId') setSelectedBank(v);
+    if (k === 'bankId') setSelectedBank(normalizedValue);
   };
 
   const handleFileSelect = async (file, docTypeKey, description = '') => {
@@ -692,16 +769,8 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       if (!standard.customerName || standard.customerName.trim() === '') {
         return toast.error('Customer Name is required');
       }
-      // When editing, check if original lead has mobile; if not, validate it's provided
-      const originalMobile = lead?.applicantMobile || lead?.phone || lead?.mobile || lead?.formValues?.mobile || lead?.formValues?.applicantMobile;
-      if ((!standard.applicantMobile || standard.applicantMobile.trim() === '') && (!lead || !originalMobile)) {
-        return toast.error('Mobile is required');
-      }
       if (!standard.dsaCode || standard.dsaCode.trim() === '') {
         return toast.error('DSA Code is required');
-      }
-      if (!standard.remarks || standard.remarks.trim() === '') {
-        return toast.error('Remark is required');
       }
       if (!standard.loanType || standard.loanType.trim() === '') {
         return toast.error('Loan Type is required');
@@ -720,21 +789,29 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       documents: (uploadedDocs || []).map((d) => ({ documentType: d.documentType, url: d.url })),
     };
 
-    // Add sub-agent assignment and commission for agents
-    if (isAgent && selectedSubAgentId && selectedSubAgentId !== '') {
+    // Add sub-agent assignment and commission
+    if (selectedSubAgentId && selectedSubAgentId !== '') {
       payload.subAgent = selectedSubAgentId;
 
-      // Sub-agent commission fields (optional)
-      if (standard.subAgentCommissionPercentage !== undefined && standard.subAgentCommissionPercentage !== null && standard.subAgentCommissionPercentage !== '') {
-        payload.subAgentCommissionPercentage = parseFloat(standard.subAgentCommissionPercentage);
+      const loanForSub = parseFloat(standard.loanAmount) || 0;
+      let subPctRaw = standard.subAgentCommissionPercentage;
+      let subAmtRaw = standard.subAgentCommissionAmount;
+      if (subPctRaw !== undefined && subPctRaw !== null && subPctRaw !== '') {
+        const pct = parseFloat(subPctRaw);
+        if (!Number.isNaN(pct)) {
+          if ((subAmtRaw === undefined || subAmtRaw === null || subAmtRaw === '') && loanForSub > 0) {
+            subAmtRaw = ((loanForSub * pct) / 100).toFixed(2);
+          }
+          payload.subAgentCommissionPercentage = pct;
+        }
       }
-      if (standard.subAgentCommissionAmount !== undefined && standard.subAgentCommissionAmount !== null && standard.subAgentCommissionAmount !== '') {
-        payload.subAgentCommissionAmount = parseFloat(standard.subAgentCommissionAmount);
+      if (subAmtRaw !== undefined && subAmtRaw !== null && subAmtRaw !== '') {
+        payload.subAgentCommissionAmount = parseFloat(subAmtRaw);
       }
     }
 
-    // Add agent assignment for relationship managers and franchise owners
-    if ((isRelationshipManager || isFranchise) && selectedAgentId && selectedAgentId !== '') {
+    // Add agent assignment for non-agent users (including admin/accountant/RM/franchise)
+    if (!isAgent && selectedAgentId && selectedAgentId !== '') {
       payload.agent = selectedAgentId === 'self' ? currentUser._id || currentUser.id : selectedAgentId;
     }
 
@@ -758,16 +835,23 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       // When editing, preserve original mobile if form field is empty
       const originalMobile = lead?.applicantMobile || lead?.phone || lead?.mobile || lead?.formValues?.mobile || lead?.formValues?.applicantMobile;
       payload.applicantMobile = standard.applicantMobile?.trim() || (lead && originalMobile ? originalMobile : undefined);
+      payload.formValues = {
+        ...(lead?.formValues || {}),
+        panNumber: standard.panNumber?.trim() || undefined,
+        aadhaarNumber: standard.aadhaarNumber?.trim() || undefined,
+      };
       payload.address = standard.address?.trim() || undefined;
       payload.branch = standard.branch?.trim() || undefined;
       payload.loanAccountNo = standard.loanAccountNo?.trim() || undefined;
       payload.dsaCode = standard.dsaCode?.trim() || undefined;
       payload.remarks = standard.remarks?.trim() || undefined;
+      payload.smBmName = standard.smBmName?.trim() || undefined;
       payload.smBmEmail = standard.smBmEmail?.trim() || undefined;
       payload.smBmMobile = standard.smBmMobile?.trim() || undefined;
       payload.asmName = standard.asmName?.trim() || undefined;
       payload.asmEmail = standard.asmEmail?.trim() || undefined;
       payload.asmMobile = standard.asmMobile?.trim() || undefined;
+      payload.advancePayment = standard.advancePayment === true;
       
       // Agent commission fields for franchise (when not assigned to self)
       if (isFranchise && !isSelfSelected && !isNewLead) {
@@ -777,6 +861,21 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
         payload.agentCommissionAmount = standard.agentCommissionAmount !== undefined && standard.agentCommissionAmount !== null && standard.agentCommissionAmount !== ''
           ? parseFloat(standard.agentCommissionAmount)
           : undefined;
+      }
+      // Partner (selling agent) commission — Admin / Accountant / RM (table "Partner" columns use agentCommission*)
+      if (
+        !isNewLead &&
+        (isAdmin || isAccountant || isRelationshipManager) &&
+        selectedAgentId &&
+        selectedAgentId !== '' &&
+        selectedAgentId !== 'self'
+      ) {
+        if (standard.agentCommissionPercentage !== undefined && standard.agentCommissionPercentage !== null && standard.agentCommissionPercentage !== '') {
+          payload.agentCommissionPercentage = parseFloat(standard.agentCommissionPercentage);
+        }
+        if (standard.agentCommissionAmount !== undefined && standard.agentCommissionAmount !== null && standard.agentCommissionAmount !== '') {
+          payload.agentCommissionAmount = parseFloat(standard.agentCommissionAmount);
+        }
       }
     }
 
@@ -987,7 +1086,27 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                         <input type="file" className="hidden" id={`file-${dt.key}`} onChange={(e) => handleFileSelect(e.target.files?.[0], dt.key, dt.name)} />
                         <label htmlFor={`file-${dt.key}`} className="px-3 py-1 bg-white border rounded text-xs cursor-pointer hover:bg-gray-100">Upload</label>
                         {uploadedDocs.filter(d => d.documentType === dt.key).map((d, i) => (
-                          <div key={i} className="text-xs text-green-600 font-bold">Uploaded</div>
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="text-xs text-green-600 font-bold">Uploaded</div>
+                            {d?.meta?._id || d?.meta?.id ? (
+                              <button
+                                type="button"
+                                className="text-xs text-blue-600 hover:underline"
+                                onClick={() => openDocument(d.meta._id || d.meta.id, d.meta?.mimeType)}
+                              >
+                                View
+                              </button>
+                            ) : d?.url ? (
+                              <a
+                                href={d.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                View
+                              </a>
+                            ) : null}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1000,10 +1119,10 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
             <div className="space-y-8 p-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Agent Assignment Dropdown - For all roles except agents when creating new leads */}
-                {!isAgent && !lead && (
+                {!isAgent && (
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Assign Partner *
+                      Assign Partner
                     </label>
                     <select
                       value={selectedAgentId}
@@ -1024,6 +1143,66 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                     {loadingAgents && (
                       <p className="text-sm text-gray-500 mt-1">Loading partners...</p>
                     )}
+                  </div>
+                )}
+                {!isAgent && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Select Sub Partner (Optional)
+                    </label>
+                    <select
+                      value={selectedSubAgentId}
+                      onChange={(e) => setSelectedSubAgentId(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    >
+                      <option value="">-- Select Sub Partner --</option>
+                      {nonAgentSubPartners.map((subAgent) => (
+                        <option key={subAgent._id || subAgent.id} value={subAgent._id || subAgent.id}>
+                          {subAgent.name || subAgent.email || 'Unknown Sub Partner'}
+                        </option>
+                      ))}
+                    </select>
+                    {nonAgentSubPartners.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">No sub-partners available.</p>
+                    )}
+                  </div>
+                )}
+                {!isAgent && selectedSubAgentId && (
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        Sub Partner Commission (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={standard.subAgentCommissionPercentage ?? ''}
+                        onChange={(e) => handleStandardChange('subAgentCommissionPercentage', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        placeholder="0.00"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        Sub Partner Commission Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        value={standard.subAgentCommissionAmount ?? ''}
+                        onChange={(e) => handleStandardChange('subAgentCommissionAmount', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                      />
+                      {standard.loanAmount && standard.subAgentCommissionPercentage ? (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Updates when loan amount or % changes; you can override the amount if needed.
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                 )}
 
@@ -1131,16 +1310,69 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                 {/* Applicant Mobile */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Mobile {!isNewLead && '*'}
+                    Mobile
                   </label>
                   <input
                     type="tel"
                     value={standard.applicantMobile || ''}
                     onChange={(e) => handleStandardChange('applicantMobile', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                    required={!isNewLead}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                      fieldErrors.applicantMobile ? 'border-red-400' : 'border-gray-300'
+                    }`}
+                    maxLength={10}
                   />
+                  {fieldErrors.applicantMobile && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.applicantMobile}</p>
+                  )}
                 </div>
+
+                {!isNewLead && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">PAN Number</label>
+                      <input
+                        type="text"
+                        value={standard.panNumber || ''}
+                        onChange={(e) => handleStandardChange('panNumber', e.target.value)}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none uppercase ${
+                          fieldErrors.panNumber ? 'border-red-400' : 'border-gray-300'
+                        }`}
+                        placeholder="ABCDE1234F"
+                        maxLength={10}
+                      />
+                      {fieldErrors.panNumber && (
+                        <p className="mt-1 text-xs text-red-600">{fieldErrors.panNumber}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Aadhaar Number</label>
+                      <input
+                        type="text"
+                        value={standard.aadhaarNumber || ''}
+                        onChange={(e) => handleStandardChange('aadhaarNumber', e.target.value)}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                          fieldErrors.aadhaarNumber ? 'border-red-400' : 'border-gray-300'
+                        }`}
+                        placeholder="12 digit Aadhaar"
+                        maxLength={12}
+                      />
+                      {fieldErrors.aadhaarNumber && (
+                        <p className="mt-1 text-xs text-red-600">{fieldErrors.aadhaarNumber}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Advance Payment</label>
+                      <select
+                        value={standard.advancePayment ? 'true' : 'false'}
+                        onChange={(e) => handleStandardChange('advancePayment', e.target.value === 'true')}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none bg-white"
+                      >
+                        <option value="false">False</option>
+                        <option value="true">True</option>
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 {/* Loan Type - only for bank leads */}
                 {!isNewLead && (
@@ -1195,8 +1427,14 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                       type="text"
                       value={standard.loanAccountNo || ''}
                       onChange={(e) => handleStandardChange('loanAccountNo', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                        fieldErrors.loanAccountNo ? 'border-red-400' : 'border-gray-300'
+                      }`}
+                      maxLength={18}
                     />
+                    {fieldErrors.loanAccountNo && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.loanAccountNo}</p>
+                    )}
                   </div>
                 )}
 
@@ -1210,6 +1448,19 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                       onChange={(e) => handleStandardChange('dsaCode', e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                       required
+                    />
+                  </div>
+                )}
+
+                {/* SM/BM Email - only for bank leads */}
+                {!isNewLead && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">SM/BM Name</label>
+                    <input
+                      type="text"
+                      value={standard.smBmName || ''}
+                      onChange={(e) => handleStandardChange('smBmName', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                     />
                   </div>
                 )}
@@ -1235,8 +1486,14 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                       type="tel"
                       value={standard.smBmMobile || ''}
                       onChange={(e) => handleStandardChange('smBmMobile', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                        fieldErrors.smBmMobile ? 'border-red-400' : 'border-gray-300'
+                      }`}
+                      maxLength={10}
                     />
+                    {fieldErrors.smBmMobile && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.smBmMobile}</p>
+                    )}
                   </div>
                 )}
 
@@ -1274,8 +1531,14 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                       type="tel"
                       value={standard.asmMobile || ''}
                       onChange={(e) => handleStandardChange('asmMobile', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                        fieldErrors.asmMobile ? 'border-red-400' : 'border-gray-300'
+                      }`}
+                      maxLength={10}
                     />
+                    {fieldErrors.asmMobile && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.asmMobile}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1283,13 +1546,12 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
               {/* Remark - required for bank leads */}
               {!isNewLead && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Remark *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Remark</label>
                   <textarea
                     value={standard.remarks || ''}
                     onChange={(e) => handleStandardChange('remarks', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                     rows={3}
-                    required
                   />
                 </div>
               )}
@@ -1386,6 +1648,9 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
               {canSetCommission && !isNewLead && !isAgent && !isFranchise && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf) && (
                 <div className="border-t pt-6 space-y-4">
                   <h5 className="font-bold text-gray-800">Commission Details</h5>
+                  <p className="text-xs text-gray-600">
+                    These values appear under <span className="font-medium">Associated Comm</span> (franchise / RM share). Use <span className="font-medium">Partner (Agent) Commission</span> below for the selling partner&apos;s column.
+                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -1416,6 +1681,43 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                         step="0.01"
                         min="0"
                         required={!lead}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Partner (selling agent) commission — Admin / Accountant / RM; table &quot;Partner&quot; columns */}
+              {canSetCommission && !isNewLead && !isAgent && !isFranchise && selectedAgentId && selectedAgentId !== 'self' && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf) && (
+                <div className="border-t pt-6 space-y-4">
+                  <h5 className="font-bold text-gray-800">Partner (Agent) Commission</h5>
+                  <p className="text-xs text-gray-600">
+                    Shown as Partner Comm % / Amt on the customers list. Optional unless your process requires it.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Partner Commission Percentage (%)</label>
+                      <input
+                        type="number"
+                        value={standard.agentCommissionPercentage ?? ''}
+                        onChange={(e) => handleStandardChange('agentCommissionPercentage', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">Partner Commission Amount (₹)</label>
+                      <input
+                        type="number"
+                        value={standard.agentCommissionAmount ?? ''}
+                        onChange={(e) => handleStandardChange('agentCommissionAmount', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                        placeholder="Auto from % and loan"
+                        step="0.01"
+                        min="0"
                       />
                     </div>
                   </div>

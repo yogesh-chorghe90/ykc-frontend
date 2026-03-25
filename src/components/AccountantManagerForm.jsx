@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import { formatMobileNumber } from '../utils/identifierFormatters'
 
 const AccountantManagerForm = ({ accountantManager, onSave, onClose, isSaving = false }) => {
     const isEdit = !!accountantManager
@@ -78,7 +79,8 @@ const AccountantManagerForm = ({ accountantManager, onSave, onClose, isSaving = 
 
     const handleChange = (e) => {
         const { name, value } = e.target
-        setFormData((prev) => ({ ...prev, [name]: value }))
+        const formattedValue = name === 'mobile' ? formatMobileNumber(value) : value
+        setFormData((prev) => ({ ...prev, [name]: formattedValue }))
         if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }))
     }
 

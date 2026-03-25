@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { authService } from '../services/auth.service'
 import { api } from '../services/api'
 import Modal from './Modal'
+import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
 
 const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
   const isCreate = !franchise
@@ -57,7 +58,7 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
         name: franchise.name || '',
         ownerName: franchise.ownerName || '',
         email: franchise.email || '',
-        mobile: franchise.mobile || '',
+        mobile: formatMobileNumber(franchise.mobile || ''),
         password: '',
         status: franchise.status || 'active',
         franchiseType: franchise.franchiseType || 'normal',
@@ -69,8 +70,20 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
           state: franchise.address?.state || '',
           pincode: franchise.address?.pincode || '',
         },
-        kyc: franchise.kyc || { pan: '', aadhaar: '', gst: '' },
-        bankDetails: franchise.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
+        kyc: {
+          ...(franchise.kyc || {}),
+          pan: formatPanNumber(franchise.kyc?.pan),
+          aadhaar: formatAadhaarNumber(franchise.kyc?.aadhaar),
+          gst: franchise.kyc?.gst || '',
+        },
+        bankDetails: {
+          ...(franchise.bankDetails || {}),
+          accountHolderName: franchise.bankDetails?.accountHolderName || '',
+          accountNumber: formatBankAccountNumber(franchise.bankDetails?.accountNumber),
+          bankName: franchise.bankDetails?.bankName || '',
+          branch: franchise.bankDetails?.branch || '',
+          ifsc: franchise.bankDetails?.ifsc || '',
+        },
         documents: franchise.documents || [],
       })
     }
@@ -111,9 +124,11 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target
+    let formattedValue = value
+    if (name === 'mobile') formattedValue = formatMobileNumber(value)
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: formattedValue,
     }))
     // Clear error when user starts typing
     if (errors[name]) {
@@ -123,11 +138,15 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
 
   const handleNestedChange = (e) => {
     const { name, value } = e.target
+    let formattedValue = value
     if (name.includes('.')) {
       const [parent, child] = name.split('.')
-      setFormData((prev) => ({ ...prev, [parent]: { ...(prev[parent] || {}), [child]: value } }))
+      if (parent === 'kyc' && child === 'pan') formattedValue = formatPanNumber(value)
+      if (parent === 'kyc' && child === 'aadhaar') formattedValue = formatAadhaarNumber(value)
+      if (parent === 'bankDetails' && child === 'accountNumber') formattedValue = formatBankAccountNumber(value)
+      setFormData((prev) => ({ ...prev, [parent]: { ...(prev[parent] || {}), [child]: formattedValue } }))
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }))
+      setFormData((prev) => ({ ...prev, [name]: formattedValue }))
     }
   }
 

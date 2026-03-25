@@ -8,6 +8,7 @@ import StatCard from '../components/StatCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
 import { exportToExcel } from '../utils/exportExcel'
+import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
 
 const AccountantManagers = () => {
     const [accountantManagers, setAccountantManagers] = useState([])
@@ -313,7 +314,7 @@ const AccountantManagers = () => {
                             </div>
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-gray-500 uppercase">Mobile Number</label>
-                                <p className="text-sm text-gray-900">{selectedAM.mobile || selectedAM.phone || 'N/A'}</p>
+                                <p className="text-sm text-gray-900">{formatMobileNumber(selectedAM.mobile || selectedAM.phone) || 'N/A'}</p>
                             </div>
                         </div>
 
@@ -322,11 +323,11 @@ const AccountantManagers = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-gray-500 uppercase">PAN Number</label>
-                                    <p className="text-sm text-gray-900">{selectedAM.kyc?.pan || 'N/A'}</p>
+                                    <p className="text-sm text-gray-900">{formatPanNumber(selectedAM.kyc?.pan) || 'N/A'}</p>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-gray-500 uppercase">Aadhaar Number</label>
-                                    <p className="text-sm text-gray-900">{selectedAM.kyc?.aadhaar || 'N/A'}</p>
+                                    <p className="text-sm text-gray-900">{formatAadhaarNumber(selectedAM.kyc?.aadhaar) || 'N/A'}</p>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-gray-500 uppercase">GST Number</label>
@@ -352,7 +353,7 @@ const AccountantManagers = () => {
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-gray-500 uppercase">Account Number</label>
-                                    <p className="text-sm text-gray-900">{selectedAM.bankDetails?.accountNumber || 'N/A'}</p>
+                                    <p className="text-sm text-gray-900">{formatBankAccountNumber(selectedAM.bankDetails?.accountNumber) || 'N/A'}</p>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-gray-500 uppercase">IFSC Code</label>

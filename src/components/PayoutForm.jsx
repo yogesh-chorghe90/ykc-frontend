@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Upload, X, File } from 'lucide-react'
 import { toast } from '../services/toastService'
+import api from '../services/api'
 
 const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
   const [formData, setFormData] = useState({
@@ -22,7 +23,31 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
   })
   const [selectedFile, setSelectedFile] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [loadingLead, setLoadingLead] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [leadPreview, setLeadPreview] = useState(null)
+
+  const formatMobile = (value) => {
+    const text = value === undefined || value === null ? '' : String(value)
+    return text.replace(/\D/g, '').slice(0, 10)
+  }
+
+  const formatLoanAccountNo = (value) => {
+    const text = value === undefined || value === null ? '' : String(value)
+    const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18)
+    if (cleaned.length > 0 && cleaned.length < 9) return ''
+    return cleaned
+  }
+
+  const formatPan = (value) => {
+    const text = value === undefined || value === null ? '' : String(value)
+    return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)
+  }
+
+  const formatAadhaar = (value) => {
+    const text = value === undefined || value === null ? '' : String(value)
+    return text.replace(/\D/g, '').slice(0, 12)
+  }
 
   useEffect(() => {
     if (payout) {
@@ -53,35 +78,117 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
 
   const handleLeadChange = (e) => {
     const leadId = e.target.value
+
+    // Always set leadId immediately for controlled <select>
+    setFormData((prev) => ({
+      ...prev,
+      leadId,
+    }))
+
+    if (!leadId) {
+      setFormData((prev) => ({
+        ...prev,
+        agent: '',
+        franchise: '',
+      }))
+      setLeadPreview(null)
+      return
+    }
+
+    // Helper: resolve only the required confirmation fields from a lead object
     const selectedLead = leads.find(
       (lead) => String(lead._id || lead.id) === String(leadId)
     )
 
-    let agentId = formData.agent
-    let franchiseId = formData.franchise
+    const resolveFromLeadObject = (lead) => {
+      const agentId =
+        lead?.agent?._id ||
+        lead?.agent?.id ||
+        lead?.agentId ||
+        lead?.agent ||
+        ''
 
-    if (selectedLead) {
-      agentId =
-        selectedLead.agentId ||
-        selectedLead.agent?._id ||
-        selectedLead.agent?.id ||
-        selectedLead.agent ||
-        agentId
+      // Franchise can come from either:
+      // 1) lead.associated (when associatedModel === 'Franchise')
+      // 2) lead.agent.managedBy (when agent.managedByModel === 'Franchise')
+      let franchiseId = ''
+      if (lead?.associatedModel === 'Franchise') {
+        franchiseId =
+          lead?.associated?._id ||
+          lead?.associated?.id ||
+          lead?.associated ||
+          ''
+      } else if (lead?.agent?.managedByModel === 'Franchise') {
+        franchiseId =
+          lead?.agent?.managedBy?._id ||
+          lead?.agent?.managedBy?.id ||
+          lead?.agent?.managedBy ||
+          ''
+      }
 
-      franchiseId =
-        selectedLead.franchiseId ||
-        selectedLead.franchise?._id ||
-        selectedLead.franchise?.id ||
-        selectedLead.franchise ||
-        franchiseId
+      return { agentId, franchiseId }
     }
 
-    setFormData((prev) => ({
-      ...prev,
-      leadId,
-      agent: agentId,
-      franchise: franchiseId,
-    }))
+    // Always fetch minimal confirmation data by leadId (no conditional skipping)
+    ;(async () => {
+      try {
+        setLoadingLead(true)
+        const res = await api.leads.getById(leadId)
+        const lead = res?.data || res
+
+        const leadMobile =
+          lead?.applicantMobile ||
+          lead?.phone ||
+          lead?.mobile ||
+          lead?.formValues?.applicantMobile ||
+          lead?.formValues?.mobile ||
+          ''
+        const leadEmail = lead?.applicantEmail || lead?.email || lead?.formValues?.applicantEmail || lead?.formValues?.email || ''
+        const leadPan =
+          lead?.panNumber ||
+          lead?.formValues?.panNumber ||
+          ''
+        const leadAadhaar =
+          lead?.aadhaarNumber ||
+          lead?.formValues?.aadhaarNumber ||
+          ''
+        const leadLan =
+          lead?.loanAccountNo ||
+          lead?.loanAccountNumber ||
+          lead?.formValues?.loanAccountNo ||
+          lead?.formValues?.loanAccountNumber ||
+          ''
+
+        setLeadPreview({
+          leadLabel: lead?.customerName || lead?.leadName || lead?.loanAccountNo || lead?.leadId || 'N/A',
+          loanAccountNo: formatLoanAccountNo(leadLan),
+          loanAmount: lead?.loanAmount || lead?.amount || lead?.disbursedAmount || 0,
+          applicantMobile: formatMobile(leadMobile),
+          applicantEmail: leadEmail || 'N/A',
+          panNumber: formatPan(leadPan),
+          aadhaarNumber: formatAadhaar(leadAadhaar),
+        })
+
+        const { agentId: fetchedAgentId, franchiseId: fetchedFranchiseId } = resolveFromLeadObject(lead)
+
+        if (!fetchedAgentId) {
+          toast.error('Error', 'Selected lead is missing Agent information.')
+        }
+        // No toast here: payout backend will validate required fields.
+        // We only want to auto-fill confirmation fields silently.
+
+        setFormData((prev) => ({
+          ...prev,
+          agent: fetchedAgentId || '',
+          franchise: fetchedFranchiseId || '',
+        }))
+      } catch (err) {
+        console.error('Error fetching lead for payout confirmation:', err)
+        toast.error('Error', 'Failed to load selected lead details.')
+      } finally {
+        setLoadingLead(false)
+      }
+    })()
   }
 
   const handleBankDetailsChange = (e) => {
@@ -283,6 +390,41 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
           </select>
         </div>
       </div>
+
+      {leadPreview && (
+        <div className="border-t pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <div className="text-sm font-medium text-gray-700">Lead</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.leadLabel}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700">Loan Amount (₹)</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.loanAmount?.toLocaleString?.('en-IN') || leadPreview.loanAmount || 0}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700">Loan Account No</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.loanAccountNo || 'N/A'}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700">Mobile</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.applicantMobile || 'N/A'}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700">Email</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.applicantEmail || 'N/A'}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700">PAN</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.panNumber || 'N/A'}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700">Aadhaar</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.aadhaarNumber || 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bank Details */}
       <div className="border-t pt-4">
