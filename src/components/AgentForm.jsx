@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
 import Modal from './Modal'
-import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
 
 const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = null, fixedManagedByModel = null, hideManagedBySelector = false }) => {
   const currentUser = useMemo(() => authService.getUser(), [])
@@ -120,25 +119,13 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       setFormData({
         name: agent.name || '',
         email: agent.email || '',
-        phone: formatMobileNumber(agent.phone || agent.mobile || ''),
+        phone: agent.phone || agent.mobile || '',
         status: agent.status || 'active',
         agentType: agent.agentType || 'normal',
         managedBy: managedById,
         managedByModel,
-        kyc: {
-          ...(agent.kyc || {}),
-          pan: formatPanNumber(agent.kyc?.pan),
-          aadhaar: formatAadhaarNumber(agent.kyc?.aadhaar),
-          gst: agent.kyc?.gst || '',
-        },
-        bankDetails: {
-          ...(agent.bankDetails || {}),
-          accountHolderName: agent.bankDetails?.accountHolderName || '',
-          accountNumber: formatBankAccountNumber(agent.bankDetails?.accountNumber),
-          bankName: agent.bankDetails?.bankName || '',
-          branch: agent.bankDetails?.branch || '',
-          ifsc: agent.bankDetails?.ifsc || '',
-        },
+        kyc: agent.kyc || { pan: '', aadhaar: '', gst: '' },
+        bankDetails: agent.bankDetails || { accountHolderName: '', accountNumber: '', bankName: '', branch: '', ifsc: '' },
         documents: agent.documents || [],
       })
       
@@ -237,29 +224,15 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    let formattedValue = value
-
-    // Normalize identifier inputs consistently across the app.
-    if (name === 'phone' || name === 'mobile') {
-      formattedValue = formatMobileNumber(value)
-    }
-
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.')
-      if (parent === 'kyc' && child === 'pan') formattedValue = formatPanNumber(value)
-      if (parent === 'kyc' && child === 'aadhaar') formattedValue = formatAadhaarNumber(value)
-      if (parent === 'bankDetails' && child === 'accountNumber') formattedValue = formatBankAccountNumber(value)
-    }
-
     // Support nested keys like kyc.pan or bankDetails.accountNumber
     if (name.includes('.')) {
       const [parent, child] = name.split('.')
       setFormData((prev) => ({
         ...prev,
-        [parent]: { ...(prev[parent] || {}), [child]: formattedValue },
+        [parent]: { ...(prev[parent] || {}), [child]: value },
       }))
     } else {
-      setFormData((prev) => ({ ...prev, [name]: formattedValue }))
+      setFormData((prev) => ({ ...prev, [name]: value }))
     }
     // Clear error when user starts typing
     if (errors[name]) {
