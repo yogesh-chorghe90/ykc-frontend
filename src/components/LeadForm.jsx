@@ -146,6 +146,24 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
   const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
+  const selectedAgent = useMemo(() => {
+    if (isAgent || !selectedAgentId || selectedAgentId === 'self') return null;
+    return (agents || []).find((a) => (a._id || a.id) === selectedAgentId) || null;
+  }, [isAgent, selectedAgentId, agents]);
+
+  // RM-associated leads should not have "Associated Commission" entered manually.
+  const isRelationshipManagerAssociatedLead = useMemo(() => {
+    // Agent creating lead under RM hierarchy
+    if (isAgent && authService.getUser()?.managedByModel === 'RelationshipManager') return true;
+    // RM assigning lead to self
+    if (isRelationshipManager && selectedAgentId === 'self') return true;
+    // Non-agent selected an agent who is managed by RM
+    if (selectedAgent?.managedByModel === 'RelationshipManager') return true;
+    // Edit mode fallback
+    if (lead?.associatedModel === 'RelationshipManager') return true;
+    return false;
+  }, [isAgent, isRelationshipManager, selectedAgentId, selectedAgent, lead?.associatedModel]);
+
   // temp id for pre-uploading docs before lead is created
   const tempEntityId = useMemo(() => `temp-${Date.now()}-${Math.round(Math.random() * 1e6)}`, []);
 
@@ -646,7 +664,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     // Validate commission fields only for bank-type leads (Admin/Accountant/Relationship Manager)
     // Skip for Franchise (they use Partner Commission Details instead)
     // But skip validation if RM or Franchise assigned lead to self
-    if (canSetCommission && !isNewLead && !isFranchise && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf)) {
+    if (canSetCommission && !isNewLead && !isFranchise && !isRelationshipManagerAssociatedLead && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf)) {
       // When creating, both fields are required
       if (!lead) {
         if (!standard.commissionPercentage || standard.commissionPercentage === '') {
@@ -884,13 +902,16 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       payload.loanType = standard.loanType || formValues?.loanType || undefined;
       payload.loanAmount = (standard.loanAmount || formValues?.loanAmount) ? Number(standard.loanAmount || formValues?.loanAmount) : undefined;
       // Only set commission if not assigned to self (for Admin/Accountant/RM, not Franchise - they use Agent Commission)
-      if (canSetCommission && !isFranchise && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf)) {
+      if (canSetCommission && !isFranchise && !isRelationshipManagerAssociatedLead && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf)) {
         payload.commissionPercentage = (standard.commissionPercentage !== undefined && standard.commissionPercentage !== null && standard.commissionPercentage !== '') 
           ? parseFloat(standard.commissionPercentage) 
           : (standard.commissionPercentage === 0 ? 0 : undefined);
         payload.commissionAmount = (standard.commissionAmount !== undefined && standard.commissionAmount !== null && standard.commissionAmount !== '') 
           ? parseFloat(standard.commissionAmount) 
           : (standard.commissionAmount === 0 ? 0 : undefined);
+      } else if (isRelationshipManagerAssociatedLead) {
+        payload.commissionPercentage = 0;
+        payload.commissionAmount = 0;
       }
     } else if (lead && isNewLead && assignBankId) {
       // RM editing new_lead: allow adding bank and bank-specific fields
@@ -901,13 +922,16 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       payload.loanAccountNo = standard.loanAccountNo || formValues?.loanAccountNo || undefined;
       payload.branch = standard.branch || formValues?.branch || undefined;
       // Only set commission if not assigned to self (for both RM and Franchise)
-      if (canSetCommission && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf)) {
+      if (canSetCommission && !isRelationshipManagerAssociatedLead && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf)) {
         payload.commissionPercentage = (standard.commissionPercentage !== undefined && standard.commissionPercentage !== null && standard.commissionPercentage !== '') 
           ? parseFloat(standard.commissionPercentage) 
           : (standard.commissionPercentage === 0 ? 0 : undefined);
         payload.commissionAmount = (standard.commissionAmount !== undefined && standard.commissionAmount !== null && standard.commissionAmount !== '') 
           ? parseFloat(standard.commissionAmount) 
           : (standard.commissionAmount === 0 ? 0 : undefined);
+      } else if (isRelationshipManagerAssociatedLead) {
+        payload.commissionPercentage = 0;
+        payload.commissionAmount = 0;
       }
     }
 
@@ -1577,7 +1601,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                   {assignBankId && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                       {/* Only show commission fields if not assigned to self (for both RM and Franchise) */}
-                      {!((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf) && (
+                      {!isRelationshipManagerAssociatedLead && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf) && (
                         <>
                           <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Commission Percentage (%)</label>
@@ -1616,6 +1640,15 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                           </div>
                         </div>
                       )}
+                      {isRelationshipManagerAssociatedLead && (
+                        <div className="col-span-2">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-sm text-blue-800 font-medium">
+                              Associated commission is not required for RM-associated leads. Franchise commission will be applied.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">Loan Type</label>
                         <select
@@ -1645,7 +1678,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
               {/* Commission Fields - Only for bank-type leads and non-agents */}
               {/* Hidden if RM or Franchise assigned lead to self */}
               {/* For franchise, show Partner Commission Details instead, so hide this section */}
-              {canSetCommission && !isNewLead && !isAgent && !isFranchise && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf) && (
+              {canSetCommission && !isNewLead && !isAgent && !isFranchise && !isRelationshipManagerAssociatedLead && !((isRelationshipManager || isFranchise) && isSelfSelected && !canSetCommissionForSelf) && (
                 <div className="border-t pt-6 space-y-4">
                   <h5 className="font-bold text-gray-800">Commission Details</h5>
                   <p className="text-xs text-gray-600">
@@ -1683,6 +1716,15 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                         required={!lead}
                       />
                     </div>
+                  </div>
+                </div>
+              )}
+              {canSetCommission && !isNewLead && !isAgent && !isFranchise && isRelationshipManagerAssociatedLead && (
+                <div className="border-t pt-6">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-800 font-medium">
+                      This lead is under Relationship Manager hierarchy, so Associated Commission is auto-set to 0.
+                    </p>
                   </div>
                 </div>
               )}

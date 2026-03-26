@@ -7,7 +7,7 @@ import Modal from '../components/Modal'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
 import StatCard from '../components/StatCard'
-import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
+import { formatAadhaarNumber, formatBankAccountNumber, formatGstNumber, formatIfscCode, formatMobileNumber, formatPanNumber, isValidGstNumber, isValidIfscCode } from '../utils/identifierFormatters'
 
 const SubAgents = () => {
   const [subAgents, setSubAgents] = useState([])
@@ -545,15 +545,28 @@ const SubAgentForm = ({ subAgent, onSave, onClose, isSaving = false }) => {
       const [parent, child] = name.split('.')
       if (parent === 'kyc' && child === 'pan') formattedValue = formatPanNumber(value)
       if (parent === 'kyc' && child === 'aadhaar') formattedValue = formatAadhaarNumber(value)
+      if (parent === 'kyc' && child === 'gst') formattedValue = formatGstNumber(value)
       if (parent === 'bankDetails' && child === 'accountNumber') formattedValue = formatBankAccountNumber(value)
+      if (parent === 'bankDetails' && child === 'ifsc') formattedValue = formatIfscCode(value)
       setFormData((prev) => ({
         ...prev,
         [parent]: { ...(prev[parent] || {}), [child]: formattedValue },
       }))
+      if (parent === 'bankDetails' && child === 'ifsc') {
+        const msg = formattedValue && !isValidIfscCode(formattedValue)
+          ? 'IFSC code format is invalid (e.g., HDFC0001234)'
+          : ''
+        setErrors((prev) => ({ ...prev, [name]: msg }))
+      } else if (parent === 'kyc' && child === 'gst') {
+        const msg = formattedValue && !isValidGstNumber(formattedValue)
+          ? 'GST number format is invalid (e.g., 27ABCDE1234F1Z5)'
+          : ''
+        setErrors((prev) => ({ ...prev, [name]: msg }))
+      }
     } else {
       setFormData((prev) => ({ ...prev, [name]: formattedValue }))
     }
-    if (errors[name]) {
+    if (errors[name] && name !== 'bankDetails.ifsc' && name !== 'kyc.gst') {
       setErrors((prev) => ({ ...prev, [name]: '' }))
     }
   }
@@ -565,6 +578,11 @@ const SubAgentForm = ({ subAgent, onSave, onClose, isSaving = false }) => {
     if (!formData.email.trim()) newErrors.email = 'Email is required'
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid'
     if (!formData.phone.trim()) newErrors.phone = 'Phone is required'
+    const gst = formData.kyc?.gst?.trim() || ''
+    if (gst && !isValidGstNumber(gst)) newErrors['kyc.gst'] = 'GST number format is invalid (e.g., 27ABCDE1234F1Z5)'
+
+    const ifsc = formData.bankDetails?.ifsc?.trim() || ''
+    if (ifsc && !isValidIfscCode(ifsc)) newErrors['bankDetails.ifsc'] = 'IFSC code format is invalid (e.g., HDFC0001234)'
 
 
     setErrors(newErrors)
@@ -688,9 +706,13 @@ const SubAgentForm = ({ subAgent, onSave, onClose, isSaving = false }) => {
               name="kyc.gst"
               value={formData.kyc?.gst || ''}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              placeholder="GST number"
+              className={`w-full px-3 py-2 border rounded-lg ${errors['kyc.gst'] ? 'border-red-500' : 'border-gray-300'}`}
+              placeholder="e.g. 27ABCDE1234F1Z5"
+              maxLength={15}
+              inputMode="text"
+              pattern="^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$"
             />
+            {errors['kyc.gst'] && <p className="mt-1 text-sm text-red-600">{errors['kyc.gst']}</p>}
           </div>
         )}
       </div>
@@ -715,7 +737,20 @@ const SubAgentForm = ({ subAgent, onSave, onClose, isSaving = false }) => {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">IFSC</label>
-          <input type="text" name="bankDetails.ifsc" value={formData.bankDetails?.ifsc || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="IFSC code" />
+          <input
+            type="text"
+            name="bankDetails.ifsc"
+            value={formData.bankDetails?.ifsc || ''}
+            onChange={handleChange}
+            className={`w-full px-3 py-2 border rounded-lg ${errors['bankDetails.ifsc'] ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="e.g. HDFC0001234"
+            maxLength={11}
+            inputMode="text"
+            pattern="^[A-Z]{4}0[A-Z0-9]{6}$"
+          />
+          {errors['bankDetails.ifsc'] && (
+            <p className="mt-1 text-sm text-red-600">{errors['bankDetails.ifsc']}</p>
+          )}
         </div>
       </div>
 

@@ -46,9 +46,14 @@ const Dashboard = () => {
 
   const [loading, setLoading] = useState(true)
 
-  const userRole = authService.getUser()?.role || 'super_admin'
+  const userRole = authService.getUser()?.role || null
 
   const fetchDashboardData = useCallback(async () => {
+    if (!userRole) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const params = {
@@ -56,32 +61,24 @@ const Dashboard = () => {
       }
 
       let dashboardData
-      try {
-        switch (userRole) {
-          case 'agent':
-            dashboardData = await api.dashboard.getAgentDashboard(params)
-            break
-          case 'franchise':
-            dashboardData = await api.dashboard.getFranchiseOwnerDashboard(params)
-            break
-          case 'relationship_manager':
-            dashboardData = await api.dashboard.getStaffDashboard(params)
-            break
-          case 'accounts_manager':
-            dashboardData = await api.dashboard.getAccountsDashboard(params)
-            break
-          case 'regional_manager':
-          case 'super_admin':
-          default:
-            dashboardData = await api.dashboard.getAdminDashboard(params)
-            break
-        }
-      } catch (roleError) {
-        if (userRole === 'relationship_manager' || userRole === 'accounts_manager' || userRole === 'agent' || userRole === 'franchise') {
-          throw roleError
-        }
-        console.warn('Role-specific dashboard failed, trying admin:', roleError)
-        dashboardData = await api.dashboard.getAdminDashboard(params)
+      switch (userRole) {
+        case 'agent':
+          dashboardData = await api.dashboard.getAgentDashboard(params)
+          break
+        case 'franchise':
+          dashboardData = await api.dashboard.getFranchiseOwnerDashboard(params)
+          break
+        case 'relationship_manager':
+          dashboardData = await api.dashboard.getStaffDashboard(params)
+          break
+        case 'accounts_manager':
+          dashboardData = await api.dashboard.getAccountsDashboard(params)
+          break
+        case 'regional_manager':
+        case 'super_admin':
+        default:
+          dashboardData = await api.dashboard.getAdminDashboard(params)
+          break
       }
 
       // Handle different response formats

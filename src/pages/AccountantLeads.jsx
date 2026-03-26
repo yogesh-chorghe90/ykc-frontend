@@ -1144,6 +1144,18 @@ const AccountantLeads = () => {
 
                                                         // For completed status: Check if franchise invoice exists
                                                         if (lead.status === 'completed') {
+                                                            const isRMAssociatedLead = lead.associatedModel === 'RelationshipManager';
+                                                            const hasReferralFranchise = !!(lead.referralFranchise || lead.referralAssociated);
+                                                            const canGenerateCompletedInvoice = !isRMAssociatedLead || hasReferralFranchise;
+
+                                                            if (!canGenerateCompletedInvoice) {
+                                                                return (
+                                                                    <span className="text-xs text-gray-400">
+                                                                        N/A
+                                                                    </span>
+                                                                );
+                                                            }
+
                                                             if (lead.hasFranchiseInvoice) {
                                                                 return (
                                                                     <span className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-semibold">

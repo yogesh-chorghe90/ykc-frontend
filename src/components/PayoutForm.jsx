@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Upload, X, File } from 'lucide-react'
 import { toast } from '../services/toastService'
 import api from '../services/api'
+import { formatIfscCode, isValidIfscCode } from '../utils/identifierFormatters'
 
 const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
   const [formData, setFormData] = useState({
@@ -21,6 +22,7 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
     ifsc: '',
     bankName: '',
   })
+  const [errors, setErrors] = useState({})
   const [selectedFile, setSelectedFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [loadingLead, setLoadingLead] = useState(false)
@@ -193,7 +195,15 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
 
   const handleBankDetailsChange = (e) => {
     const { name, value } = e.target
-    setBankDetails((prev) => ({ ...prev, [name]: value }))
+    let formattedValue = value
+    if (name === 'ifsc') formattedValue = formatIfscCode(value)
+    setBankDetails((prev) => ({ ...prev, [name]: formattedValue }))
+    if (name === 'ifsc') {
+      const msg = formattedValue && !isValidIfscCode(formattedValue)
+        ? 'IFSC code format is invalid (e.g., HDFC0001234)'
+        : ''
+      setErrors((prev) => ({ ...prev, ifsc: msg }))
+    }
   }
 
   const handleFileChange = (e) => {
@@ -249,6 +259,13 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
     }
     if (!formData.netPayable || parseFloat(formData.netPayable) <= 0) {
       toast.error('Error', 'Net payable must be greater than 0')
+      return
+    }
+    const ifsc = bankDetails.ifsc?.trim() || ''
+    if (ifsc && !isValidIfscCode(ifsc)) {
+      const msg = 'IFSC code format is invalid (e.g., HDFC0001234)'
+      setErrors((prev) => ({ ...prev, ifsc: msg }))
+      toast.error('Error', msg)
       return
     }
 
@@ -457,8 +474,13 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
               name="ifsc"
               value={bankDetails.ifsc}
               onChange={handleBankDetailsChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.ifsc ? 'border-red-500' : 'border-gray-300'}`}
+              placeholder="e.g. HDFC0001234"
+              maxLength={11}
+              inputMode="text"
+              pattern="^[A-Z]{4}0[A-Z0-9]{6}$"
             />
+            {errors.ifsc && <p className="mt-1 text-sm text-red-600">{errors.ifsc}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
