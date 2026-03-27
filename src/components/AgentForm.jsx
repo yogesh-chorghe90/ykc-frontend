@@ -77,18 +77,23 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
     fetchRelationshipManagers()
   }, [])
 
-  // If the logged in user is a relationship manager, default ownership to them and hide selector (unless overridden by prop)
+  // If the logged in user is a relationship manager, default ownership to their RM profile and hide selector.
   useEffect(() => {
     if (!agent && currentUser && currentUser.role === 'relationship_manager' && !fixedManagedBy) {
+      const rmProfile = relationshipManagers.find((rm) => {
+        const ownerId = rm?.owner?._id || rm?.owner?.id || rm?.owner
+        const currentUserId = currentUser?._id || currentUser?.id
+        return ownerId && currentUserId && ownerId.toString() === currentUserId.toString()
+      })
       setFormData(prev => ({
         ...prev,
         managedByModel: 'RelationshipManager',
-        managedBy: currentUser._id || currentUser.id || '',
+        managedBy: rmProfile?._id || rmProfile?.id || prev.managedBy || '',
       }))
       // show RM name if available
-      if (currentUser.name) setRmSearch(currentUser.name)
+      if (rmProfile?.name || currentUser.name) setRmSearch(rmProfile?.name || currentUser.name)
     }
-  }, [agent, currentUser, fixedManagedBy])
+  }, [agent, currentUser, fixedManagedBy, relationshipManagers])
 
   // Fetch franchises lazily when needed (e.g., when the franchise search input is focused)
   const fetchFranchises = async () => {
@@ -169,7 +174,8 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
 
   // Whether the current user should be restricted to their own franchise
   const isFranchiseCreator = currentUser?.role === 'franchise'
-  const effectiveHideManagedBySelector = typeof hideManagedBySelector === 'boolean' ? hideManagedBySelector : (currentUser?.role === 'relationship_manager')
+  const isRelationshipManagerCreator = currentUser?.role === 'relationship_manager'
+  const effectiveHideManagedBySelector = Boolean(hideManagedBySelector || isRelationshipManagerCreator)
 
   const validate = (dataParam) => {
     const newErrors = {}
@@ -486,7 +492,7 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
                 }`}
               placeholder={isFranchiseCreator ? 'Your franchise' : 'Search and select franchise'}
               autoComplete="off"
-              readOnly={isFranchiseCreator}
+              readOnly={isFranchiseCreator || isRelationshipManagerCreator || effectiveHideManagedBySelector}
             />
             {!effectiveHideManagedBySelector && showSuggestions && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -523,7 +529,7 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
                 }`}
               placeholder="Search and select relationship manager"
               autoComplete="off"
-              readOnly={isFranchiseCreator}
+              readOnly={isFranchiseCreator || isRelationshipManagerCreator || effectiveHideManagedBySelector}
             />
             {!effectiveHideManagedBySelector && showSuggestions && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
