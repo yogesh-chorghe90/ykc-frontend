@@ -22,16 +22,35 @@ const DisbursementForm = ({ isOpen, onClose, onSubmit, lead, loading = false }) 
   const loanAmount = lead?.loanAmount || lead?.amount || 0
   const disbursedAmount = lead?.disbursedAmount || 0
   const remaining = Math.max(0, loanAmount - disbursedAmount)
+  const GST_RATE = 18
 
   // Optional legacy/denormalized commission basis from lead
-  const leadCommissionPercentage = Number(lead?.commissionPercentage || 0)
+  const leadCommissionPercentage = useMemo(() => {
+    const agentPct = Number(lead?.agentCommissionPercentage || 0)
+    if (agentPct > 0) return agentPct
+
+    const associatedPct = Number(lead?.commissionPercentage || 0)
+    const hasAssociatedName = !!(lead?.associated?.name || lead?.associatedName)
+    const hasSubAgent = !!(lead?.subAgent?.name || lead?.subAgentName)
+    if (agentPct === 0 && associatedPct > 0 && hasAssociatedName && !hasSubAgent) {
+      return associatedPct
+    }
+    return 0
+  }, [lead])
+
+  const subPartnerCommissionPercentage = Number(lead?.subAgentCommissionPercentage || 0)
+  const hasSubAgent = !!(lead?.subAgent?.name || lead?.subAgentName || lead?.subAgent)
+  const partnerCommissionPercentage = Math.max(0, leadCommissionPercentage - subPartnerCommissionPercentage)
+  const isGstAgent = useMemo(() => {
+    const agentType = String(lead?.agent?.agentType || lead?.agentType || '').toUpperCase()
+    const hasGstNo = !!String(lead?.agent?.kyc?.gst || lead?.agent?.gst || lead?.kyc?.gst || lead?.gst || '').trim()
+    return agentType === 'GST' || hasGstNo
+  }, [lead])
 
   const [formData, setFormData] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     commission: '',
-    commissionType: 'amt', // 'amt' or 'percent'
-    commissionPercent: '',
     gst: '',
     notes: '',
   })
@@ -45,15 +64,13 @@ const DisbursementForm = ({ isOpen, onClose, onSubmit, lead, loading = false }) 
         amount: '',
         date: new Date().toISOString().split('T')[0],
         commission: '',
-        commissionType: 'amt',
-        commissionPercent: '',
         gst: '',
         notes: '',
       })
       setErrors({})
       setTouched({})
     }
-  }, [isOpen, lead])
+  }, [isOpen, lead, leadCommissionPercentage])
 
   useEffect(() => {
     preventBackgroundScroll(isOpen)
@@ -70,16 +87,29 @@ const DisbursementForm = ({ isOpen, onClose, onSubmit, lead, loading = false }) 
     const amount = Number.isFinite(parsedAmount) ? parsedAmount : null
     if (!amount || amount <= 0) return
 
-    if (formData.commissionType === 'percent') {
-      const pct = parseFloat(formData.commissionPercent)
-      if (Number.isFinite(pct)) {
-        setFormData((p) => ({ ...p, commission: ((amount * pct) / 100).toFixed(2) }))
-      }
-    } else if (!formData.commission && leadCommissionPercentage > 0) {
-      // Legacy behavior: auto-fill commission from lead.commissionPercentage when in "amt" mode
-      setFormData((p) => ({ ...p, commission: ((amount * leadCommissionPercentage) / 100).toFixed(2) }))
+    let commissionAmount = 0
+    let shouldAutoWriteCommission = false
+    if (leadCommissionPercentage > 0) {
+      // Commission for accountant entry should follow configured lead/agent commission percentage.
+      commissionAmount = (amount * leadCommissionPercentage) / 100
+      shouldAutoWriteCommission = true
+    } else {
+      const manualCommission = parseFloat(formData.commission)
+      if (Number.isFinite(manualCommission)) commissionAmount = manualCommission
     }
-  }, [parsedAmount, formData.commissionType, formData.commissionPercent, formData.commission, leadCommissionPercentage])
+
+    const gstAmount = isGstAgent ? (commissionAmount * GST_RATE) / 100 : 0
+    setFormData((p) => ({
+      ...p,
+      commission: shouldAutoWriteCommission ? (commissionAmount ? commissionAmount.toFixed(2) : '') : p.commission,
+      gst: gstAmount ? gstAmount.toFixed(2) : '',
+    }))
+  }, [
+    parsedAmount,
+    formData.commission,
+    leadCommissionPercentage,
+    isGstAgent,
+  ])
 
   const validateField = (name, value) => {
     const newErrors = { ...errors }
@@ -108,14 +138,10 @@ const DisbursementForm = ({ isOpen, onClose, onSubmit, lead, loading = false }) 
         else delete newErrors.commission
         break
       }
-      case 'commissionPercent': {
-        if (value && (parseFloat(value) < 0 || parseFloat(value) > 100)) {
-          newErrors.commissionPercent = 'Commission percentage must be between 0 and 100'
-        } else delete newErrors.commissionPercent
-        break
-      }
       case 'gst': {
-        if (value && parseFloat(value) < 0) newErrors.gst = 'GST cannot be negative'
+        if (!isGstAgent) {
+          delete newErrors.gst
+        } else if (value && parseFloat(value) < 0) newErrors.gst = 'GST cannot be negative'
         else delete newErrors.gst
         break
       }
@@ -143,23 +169,15 @@ const DisbursementForm = ({ isOpen, onClose, onSubmit, lead, loading = false }) 
 
     if (!amountOk || !dateOk) return
 
-    // commission validation depends on commissionType
-    if (formData.commissionType === 'amt' && (!formData.commission || parseFloat(formData.commission) < 0)) {
+    if (!formData.commission || parseFloat(formData.commission) < 0) {
       setErrors((p) => ({ ...p, commission: 'Commission amount is required' }))
-      return
-    }
-    if (formData.commissionType === 'percent' && (!formData.commissionPercent || parseFloat(formData.commissionPercent) < 0)) {
-      setErrors((p) => ({ ...p, commissionPercent: 'Commission percentage is required' }))
       return
     }
 
     const submissionData = {
       amount: parseFloat(formData.amount),
       date: formData.date,
-      commission:
-        formData.commissionType === 'percent'
-          ? parseFloat(((parseFloat(formData.amount) * parseFloat(formData.commissionPercent)) / 100).toFixed(2))
-          : parseFloat(formData.commission || 0),
+      commission: parseFloat(formData.commission || 0),
       gst: formData.gst ? parseFloat(formData.gst) : 0,
       notes: formData.notes || '',
     }
@@ -246,81 +264,75 @@ const DisbursementForm = ({ isOpen, onClose, onSubmit, lead, loading = false }) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Commission Type
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFormData((p) => ({ ...p, commissionType: 'amt' }))}
-                  className={`px-3 py-2 rounded-lg border ${
-                    formData.commissionType === 'amt' ? 'bg-primary-50 border-primary-300 text-primary-900' : 'bg-white border-gray-300 text-gray-700'
-                  }`}
-                >
-                  Amount
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData((p) => ({ ...p, commissionType: 'percent' }))}
-                  className={`px-3 py-2 rounded-lg border ${
-                    formData.commissionType === 'percent' ? 'bg-primary-50 border-primary-300 text-primary-900' : 'bg-white border-gray-300 text-gray-700'
-                  }`}
-                >
-                  Percentage
-                </button>
-              </div>
-            </div>
-
-            {formData.commissionType === 'amt' ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Commission Amount</label>
-                <input
-                  type="number"
-                  name="commission"
-                  value={formData.commission}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                    errors.commission ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:ring-primary-500'
-                  }`}
-                  step="0.01"
-                  min="0"
-                />
-                {touched.commission && errors.commission && <p className="mt-1 text-xs text-red-600">{errors.commission}</p>}
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Commission Percentage (%)</label>
-                <input
-                  type="number"
-                  name="commissionPercent"
-                  value={formData.commissionPercent}
-                  onChange={handleChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                    errors.commissionPercent ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:ring-primary-500'
-                  }`}
-                  step="0.01"
-                  min="0"
-                  max="100"
-                />
-                {touched.commissionPercent && errors.commissionPercent && <p className="mt-1 text-xs text-red-600">{errors.commissionPercent}</p>}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Commission Amount</label>
               <input
                 type="number"
-                name="gst"
-                value={formData.gst}
+                name="commission"
+                value={formData.commission}
                 onChange={handleChange}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                  errors.gst ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:ring-primary-500'
+                  errors.commission ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:ring-primary-500'
                 }`}
                 step="0.01"
                 min="0"
+                readOnly={leadCommissionPercentage > 0}
               />
-              {touched.gst && errors.gst && <p className="mt-1 text-xs text-red-600">{errors.gst}</p>}
+              {touched.commission && errors.commission && <p className="mt-1 text-xs text-red-600">{errors.commission}</p>}
+              {leadCommissionPercentage > 0 && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Auto calculated at {leadCommissionPercentage.toFixed(2)}% on disbursed amount
+                </p>
+              )}
             </div>
+
+            {isGstAgent && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">GST</label>
+                <input
+                  type="number"
+                  name="gst"
+                  value={formData.gst}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.gst ? 'border-red-400 focus:ring-red-100' : 'border-gray-300 focus:ring-primary-500'
+                  }`}
+                  step="0.01"
+                  min="0"
+                  readOnly
+                />
+                {touched.gst && errors.gst && <p className="mt-1 text-xs text-red-600">{errors.gst}</p>}
+                <p className="mt-1 text-xs text-gray-500">Auto calculated at {GST_RATE}% on commission</p>
+              </div>
+            )}
+
+            {hasSubAgent && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Partner Commission</label>
+                  <input
+                    type="text"
+                    value={`${partnerCommissionPercentage.toFixed(2)}% (${(
+                      ((Number.isFinite(parsedAmount) ? parsedAmount : 0) * partnerCommissionPercentage) /
+                      100
+                    ).toFixed(2)})`}
+                    readOnly
+                    className="w-full px-3 py-2 border rounded-lg border-gray-300 bg-gray-50 text-gray-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sub Partner Commission</label>
+                  <input
+                    type="text"
+                    value={`${subPartnerCommissionPercentage.toFixed(2)}% (${(
+                      ((Number.isFinite(parsedAmount) ? parsedAmount : 0) * subPartnerCommissionPercentage) /
+                      100
+                    ).toFixed(2)})`}
+                    readOnly
+                    className="w-full px-3 py-2 border rounded-lg border-gray-300 bg-gray-50 text-gray-700"
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

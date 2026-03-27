@@ -294,13 +294,28 @@ const Agents = () => {
     setIsCreateModalOpen(true)
   }
 
-  const handleEdit = (agent) => {
-    setSelectedAgent(agent)
+  const fetchAgentDetails = async (agent) => {
+    const agentId = agent?.id || agent?._id
+    if (!agentId) return agent
+    try {
+      const response = await api.agents.getById(agentId)
+      return response?.data || response || agent
+    } catch (error) {
+      console.error('Error fetching partner details:', error)
+      toast.error('Error', error.message || 'Failed to fetch partner details')
+      return agent
+    }
+  }
+
+  const handleEdit = async (agent) => {
+    const latestAgent = await fetchAgentDetails(agent)
+    setSelectedAgent(latestAgent)
     setIsEditModalOpen(true)
   }
 
-  const handleView = (agent) => {
-    setSelectedAgent(agent)
+  const handleView = async (agent) => {
+    const latestAgent = await fetchAgentDetails(agent)
+    setSelectedAgent(latestAgent)
     setIsDetailModalOpen(true)
   }
 
