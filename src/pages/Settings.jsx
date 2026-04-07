@@ -497,15 +497,6 @@ const Settings = () => {
               Enable
             </button>
           </div>
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="text-sm font-medium text-gray-900">Delete Account</p>
-              <p className="text-xs text-gray-500">Permanently delete your account and all data</p>
-            </div>
-            <button className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 transition-colors">
-              Delete
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -2,10 +2,10 @@ import { useState, useMemo, useEffect } from 'react'
 import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Store, Users, TrendingUp, ChevronDown, ChevronUp, FileDown } from 'lucide-react'
 import IndianRupeeIcon from '../components/IndianRupeeIcon'
 import api from '../services/api'
+import { authService } from '../services/auth.service'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
 import FranchiseForm from '../components/FranchiseForm'
-import AgentForm from '../components/AgentForm'
 import StatCard from '../components/StatCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
@@ -18,6 +18,8 @@ const Franchises = () => {
   const [agents, setAgents] = useState([])
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
+  const userRole = authService.getUser()?.role
+  const canCreateFranchise = userRole === 'super_admin' || userRole === 'regional_manager'
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [cityFilter, setCityFilter] = useState('')
@@ -32,8 +34,6 @@ const Franchises = () => {
   const [isSavingFranchise, setIsSavingFranchise] = useState(false)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, franchise: null })
-  const [isCreateAgentModalOpen, setIsCreateAgentModalOpen] = useState(false)
-  const [isCreatingAgent, setIsCreatingAgent] = useState(false)
 
   useEffect(() => {
     fetchFranchises()
@@ -273,90 +273,19 @@ const Franchises = () => {
     )
   }
 
-  const handleCreate = () => {
-    setSelectedFranchise(null)
-    setIsCreateModalOpen(true)
-  }
-
   const handleEdit = (franchise) => {
     setSelectedFranchise(franchise)
     setIsEditModalOpen(true)
   }
 
+  const handleCreate = () => {
+    setSelectedFranchise(null)
+    setIsCreateModalOpen(true)
+  }
+
   const handleView = (franchise) => {
     setSelectedFranchise(franchise)
     setIsDetailModalOpen(true)
-  }
-
-  const handleCreateAgentForFranchise = (franchise) => {
-    setSelectedFranchise(franchise)
-    setIsCreateAgentModalOpen(true)
-  }
-
-  const handleCreateAgentSave = async (formData, files = {}) => {
-    try {
-      setIsCreatingAgent(true)
-      const { phone, ...rest } = formData
-      const agentData = {
-        name: rest.name,
-        email: rest.email,
-        mobile: phone?.trim() || '',
-        password: rest.password || 'Agent@123',
-        role: 'agent',
-        status: rest.status || 'active',
-        agentType: rest.agentType || 'normal',
-        managedBy: rest.managedBy || rest.franchise || rest.managedBy || '',
-        managedByModel: rest.managedByModel || (rest.franchise ? 'Franchise' : 'Franchise'),
-        kyc: rest.kyc || undefined,
-        bankDetails: rest.bankDetails || undefined,
-      }
-
-      const response = await api.agents.create(agentData)
-      const created = response.data || response
-
-      const agentId = created._id || created.id || created.data?._id
-      try {
-        const pendingFiles = files.pendingFiles || {}
-        for (const [docType, fileObj] of Object.entries(pendingFiles)) {
-          const file = fileObj?.file
-          const label = fileObj?.label
-          if (file) {
-            const fd = new FormData()
-            fd.append('file', file)
-            fd.append('entityType', 'user')
-            fd.append('entityId', agentId)
-            fd.append('documentType', docType)
-            if (label) fd.append('label', label)
-            await api.documents.upload(fd)
-          }
-        }
-        const additional = files.additionalDocuments || []
-        for (const ad of additional) {
-          const file = ad?.file
-          const label = ad?.label
-          if (file) {
-            const fd = new FormData()
-            fd.append('file', file)
-            fd.append('entityType', 'user')
-            fd.append('entityId', agentId)
-            fd.append('documentType', 'additional')
-            if (label) fd.append('label', label)
-            await api.documents.upload(fd)
-          }
-        }
-      } catch (err) {
-        console.error('Error uploading pending files for new agent:', err)
-      }
-
-      setIsCreateAgentModalOpen(false)
-      toast.success('Success', 'Partner created successfully')
-      await fetchAgents()
-    } catch (error) {
-      console.error('Error creating agent:', error)
-      toast.error('Error', error.message || 'Failed to create partner')
-    } finally {
-      setIsCreatingAgent(false)
-    }
   }
 
   useEffect(() => {
@@ -372,13 +301,12 @@ const Franchises = () => {
     try {
       setIsSavingFranchise(true)
       if (selectedFranchise) {
-        // Update existing franchise
         const franchiseId = selectedFranchise.id || selectedFranchise._id
         if (!franchiseId) {
           toast.error('Error', 'Franchise ID is missing')
           return
         }
-        const response = await api.franchises.update(franchiseId, formData)
+        await api.franchises.update(franchiseId, formData)
         await fetchFranchises()
         await fetchLeads() // Refresh to update statistics
         await fetchAgents() // Refresh to update statistics
@@ -387,54 +315,49 @@ const Franchises = () => {
         setSelectedFranchise(null)
         toast.success('Success', 'Franchise updated successfully')
       } else {
-        // Create new franchise
         const response = await api.franchises.create(formData)
         const created = response.data || response
-        if (response.success || response.data) {
-          // After creating, upload pending files (if any)
-          const franchiseId = created._id || created.id || created.data?._id
-          try {
-            const pendingFiles = files.pendingFiles || {}
-            for (const [docType, fileObj] of Object.entries(pendingFiles)) {
-              const file = fileObj?.file
-              const label = fileObj?.label
-              if (file) {
-                const fd = new FormData()
-                fd.append('file', file)
-                fd.append('entityType', 'franchise')
-                fd.append('entityId', franchiseId)
-                fd.append('documentType', docType)
-                if (label) fd.append('label', label)
-                await api.documents.upload(fd)
-              }
+        // After creating, upload pending files (if any)
+        const franchiseId = created._id || created.id || created.data?._id
+        try {
+          const pendingFiles = files.pendingFiles || {}
+          for (const [docType, fileObj] of Object.entries(pendingFiles)) {
+            const file = fileObj?.file
+            const label = fileObj?.label
+            if (file && franchiseId) {
+              const fd = new FormData()
+              fd.append('file', file)
+              fd.append('entityType', 'franchise')
+              fd.append('entityId', franchiseId)
+              fd.append('documentType', docType)
+              if (label) fd.append('label', label)
+              await api.documents.upload(fd)
             }
-            const additional = files.additionalDocuments || []
-            for (const ad of additional) {
-              const file = ad?.file
-              const label = ad?.label
-              if (file) {
-                const fd = new FormData()
-                fd.append('file', file)
-                fd.append('entityType', 'franchise')
-                fd.append('entityId', franchiseId)
-                fd.append('documentType', 'additional')
-                if (label) fd.append('label', label)
-                await api.documents.upload(fd)
-              }
-            }
-          } catch (err) {
-            console.error('Error uploading pending files for new franchise:', err)
           }
-
-          await fetchFranchises()
-          await fetchLeads() // Refresh to update statistics
-          await fetchAgents() // Refresh to update statistics
-          await fetchInvoices() // Refresh to update statistics
-          setIsCreateModalOpen(false)
-          toast.success('Success', 'Franchise created successfully and saved to database')
-        } else {
-          throw new Error('Invalid response from server')
+          const additional = files.additionalDocuments || []
+          for (const ad of additional) {
+            const file = ad?.file
+            const label = ad?.label
+            if (file && franchiseId) {
+              const fd = new FormData()
+              fd.append('file', file)
+              fd.append('entityType', 'franchise')
+              fd.append('entityId', franchiseId)
+              fd.append('documentType', 'additional')
+              if (label) fd.append('label', label)
+              await api.documents.upload(fd)
+            }
+          }
+        } catch (err) {
+          console.error('Error uploading pending files for new franchise:', err)
         }
+
+        await fetchFranchises()
+        await fetchLeads()
+        await fetchAgents()
+        await fetchInvoices()
+        setIsCreateModalOpen(false)
+        toast.success('Success', 'Franchise created successfully')
       }
     } catch (error) {
       console.error('Error saving franchise:', error)
@@ -515,13 +438,15 @@ const Franchises = () => {
             <FileDown className="w-5 h-5" />
             <span>Export to Excel</span>
           </button>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Franchise</span>
-          </button>
+          {canCreateFranchise && (
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Create Franchise</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -816,7 +741,7 @@ const Franchises = () => {
 
               <div>
                 <label className="text-sm font-medium text-gray-500">Email</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedFranchise.email || 'N/A'}</p>
+                <p className="mt-1 text-sm text-gray-900 email-lowercase" data-email="true">{selectedFranchise.email || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Mobile</label>
@@ -962,17 +887,6 @@ const Franchises = () => {
                 Edit Franchise
               </button>
             </div>
-            <div className="pt-2 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  setIsDetailModalOpen(false)
-                  handleCreateAgentForFranchise(selectedFranchise)
-                }}
-                className="w-full px-4 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                Create Partner
-              </button>
-            </div>
           </div>
         )}
       </Modal>
@@ -988,16 +902,6 @@ const Franchises = () => {
         cancelText="Cancel"
         type="danger"
       />
-      <Modal isOpen={isCreateAgentModalOpen} onClose={() => { setIsCreateAgentModalOpen(false); setSelectedFranchise(null) }} title={`Create Partner${selectedFranchise ? ` for ${selectedFranchise.name}` : ''}`} size="md">
-        <AgentForm
-          onSave={handleCreateAgentSave}
-          onClose={() => { setIsCreateAgentModalOpen(false); setSelectedFranchise(null) }}
-          isSaving={isCreatingAgent}
-          fixedManagedBy={selectedFranchise ? (selectedFranchise._id || selectedFranchise.id) : null}
-          fixedManagedByModel="Franchise"
-          hideManagedBySelector={true}
-        />
-      </Modal>
     </div>
   )
 }

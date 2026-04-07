@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, FileText, File, Calendar, CheckCircle, ChevronDown, ChevronUp, FileDown, Download, DollarSign } from 'lucide-react'
+import { Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, FileText, File, Calendar, CheckCircle, ChevronDown, ChevronUp, FileDown, Download, DollarSign, Clock } from 'lucide-react'
 import api from '../services/api'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
@@ -28,6 +28,7 @@ const AccountantInvoices = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [franchiseFilter, setFranchiseFilter] = useState('')
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState('')
   const [agentFilter, setAgentFilter] = useState('')
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
@@ -139,11 +140,14 @@ const AccountantInvoices = () => {
     .reduce((sum, inv) => {
       return sum + (inv.commissionAmount || inv.netPayable || inv.amount || 0)
     }, 0)
-  const pendingAmount = totalAmount - paidAmount
 
   // Filter and search invoices
   const filteredInvoices = useMemo(() => {
     if (!invoices || invoices.length === 0) return []
+
+    // If user picked an Associated franchise but didn't pick an invoice type,
+    // default to franchise invoices so Agent/Sub-Partner invoices don't appear unexpectedly.
+    const effectiveInvoiceTypeFilter = invoiceTypeFilter || (franchiseFilter ? 'franchise' : '')
 
     return invoices.filter((invoice) => {
       if (!invoice) return false
@@ -155,6 +159,7 @@ const AccountantInvoices = () => {
         const aid = invoice.agent?._id || invoice.agent?.id || invoice.agent
         if (!aid || (aid !== agentFilter && aid.toString() !== agentFilter)) return false
       }
+      if (effectiveInvoiceTypeFilter && (invoice.invoiceType || 'agent') !== effectiveInvoiceTypeFilter) return false
       const leadId = invoice.lead?._id || invoice.lead?.id || invoice.lead || invoice.leadId
       const lead = leads.find(l => {
         const lId = l.id || l._id
@@ -187,13 +192,24 @@ const AccountantInvoices = () => {
 
       return matchesSearch && matchesStatus
     })
-  }, [invoices, searchTerm, statusFilter, franchiseFilter, agentFilter, dateFromFilter, dateToFilter, leads])
+  }, [invoices, searchTerm, statusFilter, franchiseFilter, invoiceTypeFilter, agentFilter, dateFromFilter, dateToFilter, leads])
 
-  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || franchiseFilter !== '' || agentFilter !== '' || dateFromFilter !== '' || dateToFilter !== ''
+  const filteredPendingTotal = useMemo(() => {
+    return filteredInvoices
+      .filter((inv) => inv && inv.status === 'pending')
+      .reduce((sum, inv) => sum + getInvoiceLineAmount(inv), 0)
+  }, [filteredInvoices])
+
+  const filteredTotalAmount = useMemo(() => {
+    return filteredInvoices.reduce((sum, inv) => sum + getInvoiceLineAmount(inv), 0)
+  }, [filteredInvoices])
+
+  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || franchiseFilter !== '' || invoiceTypeFilter !== '' || agentFilter !== '' || dateFromFilter !== '' || dateToFilter !== ''
   const clearInvoiceFilters = () => { 
     setSearchTerm('')
     setStatusFilter('all')
     setFranchiseFilter('')
+    setInvoiceTypeFilter('')
     setAgentFilter('')
     setDateFromFilter('')
     setDateToFilter('')
@@ -422,15 +438,6 @@ const AccountantInvoices = () => {
     return isGST && Number(gst) > 0 ? gst : ''
   }
 
-  const isOverdue = (dueDate) => {
-    if (!dueDate) return false
-    const due = new Date(dueDate)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    due.setHours(0, 0, 0, 0)
-    return due < today
-  }
-
   const statusOptions = [
     { value: 'all', label: 'All Statuses' },
     { value: 'draft', label: 'Draft' },
@@ -503,13 +510,13 @@ const AccountantInvoices = () => {
           <span className="text-gray-300 mx-1">|</span>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500 font-medium">Pending</span>
-            <span className="font-bold text-orange-600">₹{pendingAmount.toLocaleString()}</span>
+            <span className="font-bold text-orange-600">₹{filteredPendingTotal.toLocaleString('en-IN')}</span>
           </div>
         </div>
       </div>
 
       {/* Statistics Cards - Desktop Only */}
-      <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6">
         <StatCard
           title="Total Invoices"
           value={totalInvoices.toString()}
@@ -533,6 +540,12 @@ const AccountantInvoices = () => {
           value={`₹${paidAmount.toLocaleString()}`}
           icon={CheckCircle}
           color="green"
+        />
+        <StatCard
+          title="Pending total (filtered)"
+          value={`₹${filteredPendingTotal.toLocaleString('en-IN')}`}
+          icon={Clock}
+          color="orange"
         />
       </div>
 
@@ -561,7 +574,7 @@ const AccountantInvoices = () => {
           </div>
         </div>
         {filtersOpen && (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 pt-4 border-t border-gray-200">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
@@ -570,9 +583,26 @@ const AccountantInvoices = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Associated</label>
-              <select value={franchiseFilter} onChange={(e) => setFranchiseFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
+              <select
+                value={franchiseFilter}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setFranchiseFilter(v)
+                  if (v && !invoiceTypeFilter) setInvoiceTypeFilter('franchise')
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white"
+              >
                 <option value="">All franchises</option>
                 {franchises.map((f) => <option key={f._id || f.id} value={f._id || f.id}>{f.name || 'Unnamed'}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Invoice type</label>
+              <select value={invoiceTypeFilter} onChange={(e) => setInvoiceTypeFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm bg-white">
+                <option value="">All types</option>
+                <option value="franchise">Franchise</option>
+                <option value="agent">Agent</option>
+                <option value="sub_agent">Sub Partner</option>
               </select>
             </div>
             <div>
@@ -604,9 +634,13 @@ const AccountantInvoices = () => {
           </div>
         )}
         {hasActiveFilters && (
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
             <button type="button" onClick={clearInvoiceFilters} className="text-sm text-primary-600 hover:text-primary-800 font-medium">Clear all filters</button>
-            <span className="text-sm text-gray-500">Showing {filteredInvoices.length} of {invoices.length} invoices</span>
+            <span className="text-sm text-gray-500">
+              Showing {filteredInvoices.length} of {invoices.length} invoices
+              <span className="mx-2 text-gray-300">|</span>
+              <span className="font-semibold text-gray-800">Total amount: ₹{filteredTotalAmount.toLocaleString('en-IN')}</span>
+            </span>
           </div>
         )}
       </div>
@@ -658,15 +692,6 @@ const AccountantInvoices = () => {
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('dueDate')}
-                >
-                  <div className="flex items-center gap-2">
-                    Due Date
-                    {getSortIcon('dueDate')}
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('createdAt')}
                 >
                   <div className="flex items-center gap-2">
@@ -682,13 +707,13 @@ const AccountantInvoices = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : sortedInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                     No invoices found
                   </td>
                 </tr>
@@ -743,15 +768,6 @@ const AccountantInvoices = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge status={invoice.status} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <div className="text-sm text-gray-900">{invoice.dueDate}</div>
-                        {isOverdue(invoice.dueDate) && invoice.status !== 'paid' && (
-                          <span className="text-xs text-red-600 font-medium">Overdue</span>
-                        )}
-                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{invoice.createdAt}</div>

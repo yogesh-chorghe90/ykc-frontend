@@ -27,6 +27,7 @@ import SubAgents from './pages/SubAgents'
 import FranchiseCommission from './pages/FranchiseCommission'
 import Payouts from './pages/Payouts'
 import MyContacts from './pages/MyContacts'
+import IpAccessGate from './components/IpAccessGate'
 
 function App() {
   const [notifications, setNotifications] = useState([])
@@ -43,48 +44,50 @@ function App() {
   }
 
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      <ToastContainer notifications={notifications} onRemove={removeNotification} />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="leads" element={<Leads />} />
-          <Route path="agents" element={<Agents />} />
-          <Route path="staff" element={<Staff />} />
-          <Route path="banks" element={<Banks />} />
-          <Route path="franchises" element={<Franchises />} />
-          <Route path="relationship-managers" element={<RelationshipManagers />} />
-          <Route path="regional-managers" element={<RegionalManagers />} />
-          <Route path="accountant-managers" element={<AccountantManagers />} />
-          <Route path="lead-forms" element={<LeadForms />} />
-          <Route path="banners" element={<Banners />} />
-          <Route path="form16" element={<Form16 />} />
-          <Route path="tickets" element={<Tickets />} />
-          <Route path="sub-agents" element={<SubAgents />} />
-          <Route path="my-contacts" element={<MyContacts />} />
-          <Route path="history" element={<History />} />
-          <Route path="franchise-commission" element={<FranchiseCommission />} />
-          <Route path="invoices" element={<Invoices />} />
-          <Route path="payouts" element={<Payouts />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="help" element={<Help />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <IpAccessGate>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <ToastContainer notifications={notifications} onRemove={removeNotification} />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="leads" element={<Leads />} />
+            <Route path="agents" element={<Agents />} />
+            <Route path="staff" element={<Staff />} />
+            <Route path="banks" element={<Banks />} />
+            <Route path="franchises" element={<Franchises />} />
+            <Route path="relationship-managers" element={<RelationshipManagers />} />
+            <Route path="regional-managers" element={<RegionalManagers />} />
+            <Route path="accountant-managers" element={<AccountantManagers />} />
+            <Route path="lead-forms" element={<LeadForms />} />
+            <Route path="banners" element={<Banners />} />
+            <Route path="form16" element={<Form16 />} />
+            <Route path="tickets" element={<Tickets />} />
+            <Route path="sub-agents" element={<SubAgents />} />
+            <Route path="my-contacts" element={<MyContacts />} />
+            <Route path="history" element={<History />} />
+            <Route path="franchise-commission" element={<FranchiseCommission />} />
+            <Route path="invoices" element={<Invoices />} />
+            <Route path="payouts" element={<Payouts />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="help" element={<Help />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </IpAccessGate>
   )
 }
 

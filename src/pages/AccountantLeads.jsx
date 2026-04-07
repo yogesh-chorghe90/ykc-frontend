@@ -3,7 +3,7 @@ import {
     Search, Filter, ChevronDown, ChevronUp, MoreVertical, FileDown,
     Plus, Edit, Trash2, ArrowRight, User, Building, CreditCard,
     FileText, Calendar, CheckCircle2, AlertCircle, Clock, X, Save, Calculator, PieChart, DollarSign,
-    Percent, Hash, Tag, Eye, Download, CheckCircle
+    Percent, Hash, Tag, Eye, Download, CheckCircle, Paperclip, ExternalLink
 } from 'lucide-react';
 import api from '../services/api';
 import { toast } from '../services/toastService';
@@ -17,6 +17,7 @@ import LeadForm from '../components/LeadForm';
 import DisbursementEmailModal from '../components/DisbursementEmailModal';
 import { downloadInvoicePDF, loadLogoFromPublic } from '../utils/generateInvoicePDF';
 import { preloadRobotoFont, getCachedRobotoFont } from '../utils/robotoFont';
+import { humanizeDocumentType, mergeLeadDocumentsFromApiAndEmbedded } from '../utils/leadDocuments';
 
 // Financial calculation utilities
 const calculateRemainingAmount = (loanAmount, disbursedAmount) => {
@@ -50,6 +51,34 @@ const calculateNetCommission = (commission, gst) => {
     const comm = parseFloat(commission) || 0;
     const gstAmount = parseFloat(gst) || 0;
     return Math.max(0, comm - gstAmount);
+};
+
+/** Case / application id for table and search (matches backend resolveLeadDisplayCustomerId). */
+const getLeadDisplayCustomerId = (lead) => {
+    if (!lead) return null;
+    if (lead.displayCustomerId) {
+        const d = String(lead.displayCustomerId).trim();
+        if (d) return d;
+    }
+    const fv = lead.formValues && typeof lead.formValues === 'object' && !Array.isArray(lead.formValues)
+        ? lead.formValues
+        : {};
+    const candidates = [
+        lead.caseNumber,
+        fv.applicationNumber,
+        fv.customerId,
+        fv.leadId,
+        lead.leadId,
+        lead.loanAccountNo,
+        lead._id != null ? String(lead._id) : null,
+        lead.id != null ? String(lead.id) : null,
+    ];
+    for (const v of candidates) {
+        if (v === undefined || v === null) continue;
+        const s = String(v).trim();
+        if (s !== '') return s;
+    }
+    return null;
 };
 
 const getPartnerCommissionPercentage = (lead) => {
@@ -142,6 +171,8 @@ const AccountantLeads = () => {
     const [selectedLeadForEmail, setSelectedLeadForEmail] = useState(null);
 
     const [viewLeadData, setViewLeadData] = useState(null);
+    const [viewLeadDocuments, setViewLeadDocuments] = useState([]);
+    const [loadingViewLeadDocuments, setLoadingViewLeadDocuments] = useState(false);
     const [selectedLead, setSelectedLead] = useState(null);
     const [selectedDisbursement, setSelectedDisbursement] = useState(null);
     const [disbursementToDelete, setDisbursementToDelete] = useState(null);
@@ -150,6 +181,7 @@ const AccountantLeads = () => {
         status: '',
         bank: '',
         agent: '',
+        advancePayment: '',
         dateRange: { from: '', to: '' }
     });
     const [filtersOpen, setFiltersOpen] = useState(false);
@@ -329,6 +361,40 @@ const AccountantLeads = () => {
         setIsViewModalOpen(true);
     };
 
+    useEffect(() => {
+        if (!isViewModalOpen || !viewLeadData) {
+            return undefined;
+        }
+        const leadId = viewLeadData._id || viewLeadData.id;
+        let cancelled = false;
+        (async () => {
+            setViewLeadDocuments([]);
+            if (!leadId) {
+                if (!cancelled) {
+                    setViewLeadDocuments(mergeLeadDocumentsFromApiAndEmbedded([], viewLeadData.documents));
+                }
+                return;
+            }
+            setLoadingViewLeadDocuments(true);
+            try {
+                const res = await api.documents.list('lead', leadId, { limit: 200 });
+                const docs = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+                if (!cancelled) {
+                    setViewLeadDocuments(mergeLeadDocumentsFromApiAndEmbedded(docs, viewLeadData.documents));
+                }
+            } catch (_) {
+                if (!cancelled) {
+                    setViewLeadDocuments(mergeLeadDocumentsFromApiAndEmbedded([], viewLeadData.documents));
+                }
+            } finally {
+                if (!cancelled) setLoadingViewLeadDocuments(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [isViewModalOpen, viewLeadData]);
+
     const openEditModal = (leadId) => {
         const lead = leads.find(l => (l._id || l.id) === leadId);
         setSelectedLead(lead);
@@ -416,7 +482,7 @@ const AccountantLeads = () => {
         try {
             await api.leads.delete(leadId);
             await fetchLeads();
-            toast.success('Success', `Customer "${lead.leadId || lead.customerName || 'this customer'}" deleted successfully`);
+            toast.success('Success', `Customer "${getLeadDisplayCustomerId(lead) || lead.customerName || 'this customer'}" deleted successfully`);
             setConfirmDeleteLead({ isOpen: false, lead: null });
         } catch (error) {
             console.error('Error deleting lead:', error);
@@ -501,12 +567,16 @@ const AccountantLeads = () => {
         // Apply search filter
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
-            filtered = filtered.filter(lead =>
-                (lead.customerName && lead.customerName.toLowerCase().includes(term)) ||
-                (lead.leadId && lead.leadId.toLowerCase().includes(term)) ||
-                (lead.loanAccountNo && lead.loanAccountNo.toLowerCase().includes(term)) ||
-                (lead.agentName && lead.agentName.toLowerCase().includes(term))
-            );
+            filtered = filtered.filter(lead => {
+                const displayId = getLeadDisplayCustomerId(lead);
+                return (
+                    (lead.customerName && lead.customerName.toLowerCase().includes(term)) ||
+                    (displayId && displayId.toLowerCase().includes(term)) ||
+                    (lead.loanAccountNo && lead.loanAccountNo.toLowerCase().includes(term)) ||
+                    (lead.agentName && lead.agentName.toLowerCase().includes(term)) ||
+                    (lead.regionalManager?.name && lead.regionalManager.name.toLowerCase().includes(term))
+                );
+            });
         }
 
         // Apply status filter
@@ -528,6 +598,12 @@ const AccountantLeads = () => {
                 (lead.agent?.name && lead.agent.name === filters.agent) ||
                 lead.agentName === filters.agent
             );
+        }
+
+        // Apply advance payment filter
+        if (filters.advancePayment !== '') {
+            const isAdvancePayment = filters.advancePayment === 'yes';
+            filtered = filtered.filter(lead => lead.advancePayment === isAdvancePayment);
         }
 
         // Apply date range filter
@@ -719,9 +795,25 @@ const AccountantLeads = () => {
                                     </div>
                                 </div>
 
+                                <div className="flex-1 min-w-[140px] sm:min-w-[150px]">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1.5">Advance Payment</label>
+                                    <div className="relative">
+                                        <select
+                                            value={filters.advancePayment}
+                                            onChange={(e) => setFilters(prev => ({ ...prev, advancePayment: e.target.value }))}
+                                            className="w-full px-3 py-2 pr-8 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none appearance-none bg-white"
+                                        >
+                                            <option value="">All</option>
+                                            <option value="yes">Yes</option>
+                                            <option value="no">No</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                                    </div>
+                                </div>
+
                                 <div className="flex items-center justify-center w-full sm:w-auto sm:items-end">
                                     <button
-                                        onClick={() => setFilters({ status: '', bank: '', agent: '', dateRange: { from: '', to: '' } })}
+                                        onClick={() => setFilters({ status: '', bank: '', agent: '', advancePayment: '', dateRange: { from: '', to: '' } })}
                                         className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
                                     >
                                         Clear All
@@ -745,7 +837,7 @@ const AccountantLeads = () => {
                 {/* Main Content Area - Table */}
                 <div className="flex-1 overflow-hidden bg-white">
                     <div className="w-full h-full overflow-x-auto overflow-y-auto table-wrapper">
-                        <table className="w-full text-left border-collapse min-w-[2000px]">
+                        <table className="w-full text-left border-collapse min-w-[2140px]">
                             <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                                 <tr className="text-[10px] sm:text-[11px] text-gray-500 font-bold uppercase tracking-wider">
                                     <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap min-w-[40px] sm:min-w-[60px]"></th>
@@ -850,6 +942,12 @@ const AccountantLeads = () => {
                                             </span>
                                         </div>
                                     </th>
+                                    <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap min-w-[140px] cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('regionalManager.name')}>
+                                        <div className="flex items-center gap-2">
+                                            <span>Regional Manager</span>
+                                            {getSortIcon('regionalManager.name')}
+                                        </div>
+                                    </th>
                                     <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
                                         <div className="flex items-center gap-2">
                                             <span>Partner</span>
@@ -938,7 +1036,7 @@ const AccountantLeads = () => {
                                                     {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs font-mono text-gray-500 font-medium">
-                                                    {lead.leadId || lead.caseNumber || 'N/A'}
+                                                    {getLeadDisplayCustomerId(lead) || 'N/A'}
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-3">
@@ -947,7 +1045,13 @@ const AccountantLeads = () => {
                                                         </div>
                                                         <div>
                                                             <div className="text-sm font-semibold text-gray-900">{lead.customerName || 'N/A'}</div>
-                                                            <div className="text-[11px] text-gray-500">{lead.contactNumber || lead.applicantMobile || lead.applicantEmail || 'N/A'}</div>
+                                                            <div className="text-[11px] text-gray-500">
+                                                                {lead.contactNumber || lead.applicantMobile ? (
+                                                                    (lead.contactNumber || lead.applicantMobile)
+                                                                ) : (
+                                                                    <span className="email-lowercase" data-email="true">{lead.applicantEmail || 'N/A'}</span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>
@@ -960,7 +1064,7 @@ const AccountantLeads = () => {
                                                     {lead.loanAccountNo || 'N/A'}
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-700">
-                                                    {lead.advancePayment ? 'True' : 'False'}
+                                                    {lead.advancePayment ? 'Yes' : 'No'}
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
                                                     <div className="text-xs sm:text-sm font-medium text-gray-900">
@@ -1011,6 +1115,14 @@ const AccountantLeads = () => {
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-bold text-blue-600 text-right font-mono">
                                                     {formatCurrency(lead.referralFranchiseCommissionAmount || 0)}
+                                                </td>
+                                                <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                                                    <div className="font-medium text-gray-900">{lead.regionalManager?.name || '—'}</div>
+                                                    {lead.regionalManager?.email ? (
+                                                        <div className="text-[11px] text-gray-500 truncate max-w-[160px]" title={lead.regionalManager.email}>
+                                                            {lead.regionalManager.email}
+                                                        </div>
+                                                    ) : null}
                                                 </td>
                                                 <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                                                     {lead.agentName || lead.agent?.name || 'N/A'}
@@ -1255,7 +1367,7 @@ const AccountantLeads = () => {
                                             {/* EXPANDED ROW */}
                                             {isExpanded && (
                                                 <tr className="bg-gray-50/50 animate-in slide-in-from-top-2 duration-300">
-                                                    <td colSpan="21" className="p-0 border-b border-gray-100">
+                                                    <td colSpan="36" className="p-0 border-b border-gray-100">
                                                         <div className="p-6 border-b border-gray-100 transition-all duration-300">
                                                             <LeadExpandedDetails
                                                                 lead={lead}
@@ -1396,7 +1508,7 @@ const AccountantLeads = () => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                             <label className="text-xs font-semibold text-gray-500">Customer ID</label>
-                                        <p className="text-sm font-medium text-gray-900 mt-1">{viewLeadData.caseNumber || viewLeadData.leadId || viewLeadData._id || 'N/A'}</p>
+                                        <p className="text-sm font-medium text-gray-900 mt-1">{getLeadDisplayCustomerId(viewLeadData) || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <label className="text-xs font-semibold text-gray-500">Customer Name</label>
@@ -1589,6 +1701,70 @@ const AccountantLeads = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 mt-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Paperclip className="w-4 h-4 text-gray-500" />
+                                    <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">
+                                        Documents &amp; files
+                                        {viewLeadDocuments.length > 0 && (
+                                            <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full font-semibold normal-case tracking-normal">
+                                                {viewLeadDocuments.length}
+                                            </span>
+                                        )}
+                                    </span>
+                                </div>
+                                {loadingViewLeadDocuments ? (
+                                    <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                                        <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                                        Loading documents…
+                                    </div>
+                                ) : viewLeadDocuments.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {viewLeadDocuments.map((att, idx) => {
+                                            const name = att.fileName || att.originalFileName || att.name || 'File';
+                                            const ext = name.split('.').pop()?.toLowerCase() || '';
+                                            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                                            const isPdf = ext === 'pdf';
+                                            const sizeKB = att.fileSize ? (att.fileSize / 1024).toFixed(1) : null;
+                                            const docId = att.id || att._id;
+                                            const openDoc = () => {
+                                                if (docId) api.documents.open(docId);
+                                                else if (att.url) window.open(att.url, '_blank', 'noopener,noreferrer');
+                                            };
+                                            return (
+                                                <div
+                                                    key={docId ? String(docId) : `${att.url || ''}-${idx}`}
+                                                    className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                                                >
+                                                    <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${
+                                                        isImage ? 'bg-green-500' : isPdf ? 'bg-red-500' : 'bg-blue-500'
+                                                    }`}>
+                                                        {isPdf ? 'PDF' : ext.toUpperCase().slice(0, 3) || '📎'}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-xs text-gray-500 uppercase tracking-wide">{humanizeDocumentType(att.documentType)}</p>
+                                                        <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                                                        {sizeKB && <p className="text-xs text-gray-500">{sizeKB} KB</p>}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={openDoc}
+                                                        disabled={!docId && !att.url}
+                                                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:pointer-events-none"
+                                                        title="Open in new tab"
+                                                    >
+                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                        Open
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-400 py-1">No documents uploaded for this customer</p>
+                                )}
+                            </div>
                         </div>
 
                         <div className="p-6 border-t border-gray-100 bg-gray-50">
@@ -1621,7 +1797,7 @@ const AccountantLeads = () => {
                 onClose={() => setConfirmDeleteLead({ isOpen: false, lead: null })}
                 onConfirm={handleDeleteLeadConfirm}
                     title="Delete Customer"
-                    message={`Are you sure you want to delete customer "${confirmDeleteLead.lead?.leadId || confirmDeleteLead.lead?.customerName || 'this customer'}"? This action cannot be undone.`}
+                    message={`Are you sure you want to delete customer "${getLeadDisplayCustomerId(confirmDeleteLead.lead) || confirmDeleteLead.lead?.customerName || 'this customer'}"? This action cannot be undone.`}
                 confirmText="Delete"
                 cancelText="Cancel"
                 type="danger"

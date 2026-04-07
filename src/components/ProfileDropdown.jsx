@@ -81,7 +81,7 @@ const ProfileDropdown = ({ isOpen, onClose, user }) => {
                 {user?.name || 'User Name'}
               </p>
               <p className="text-xs text-gray-500 truncate">
-                {user?.email || 'user@example.com'}
+                <span className="email-lowercase" data-email="true">{user?.email || 'user@example.com'}</span>
               </p>
               {user?.role && (
                 <p className="text-xs text-primary-900 font-medium mt-0.5 truncate">

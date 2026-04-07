@@ -2,7 +2,19 @@ import { useState, useEffect } from 'react'
 import { authService } from '../services/auth.service'
 import { api } from '../services/api'
 import Modal from './Modal'
-import { formatAadhaarNumber, formatBankAccountNumber, formatGstNumber, formatIfscCode, formatMobileNumber, formatPanNumber, isValidGstNumber, isValidIfscCode } from '../utils/identifierFormatters'
+import {
+  formatAadhaarNumber,
+  formatBankAccountNumber,
+  formatGstNumber,
+  formatIfscCode,
+  formatMobileNumber,
+  formatPanNumber,
+  IFSC_FORMAT_HINT,
+  isIfscValidOrIncomplete,
+  isValidGstNumber,
+  isValidIfscCode,
+} from '../utils/identifierFormatters'
+import { uppercasePayload } from '../utils/uppercasePayload'
 
 const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
   const isCreate = !franchise
@@ -94,7 +106,7 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
     if (!formData.name.trim()) newErrors.name = 'Franchise name is required'
 
     const ifsc = formData.bankDetails?.ifsc?.trim() || ''
-    if (ifsc && !isValidIfscCode(ifsc)) newErrors['bankDetails.ifsc'] = 'IFSC code format is invalid (e.g., HDFC0001234)'
+    if (ifsc && !isValidIfscCode(ifsc)) newErrors['bankDetails.ifsc'] = IFSC_FORMAT_HINT
     const gst = formData.kyc?.gst?.trim() || ''
     if (gst && !isValidGstNumber(gst)) newErrors['kyc.gst'] = 'GST number format is invalid (e.g., 27ABCDE1234F1Z5)'
 
@@ -103,6 +115,16 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
       if (!formData.mobile?.trim()) newErrors.mobile = 'Mobile is required'
       if (!formData.password) newErrors.password = 'Password is required for owner login'
       else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters'
+
+      const pf = formData.pendingFiles || {}
+      const docs = formData.documents || []
+      const hasDocFile = (type) =>
+        Boolean(pf[type]?.file) || docs.some((d) => d.documentType === type)
+      if (!hasDocFile('pan')) newErrors.documents_pan = 'PAN card upload is required'
+      if (!hasDocFile('aadhaar')) newErrors.documents_aadhaar = 'Aadhaar card upload is required'
+      if (!hasDocFile('bank_statement')) {
+        newErrors.documents_bank_statement = 'Bank account proof upload is required'
+      }
     }
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -111,7 +133,7 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      const payload = { ...formData }
+      const payload = uppercasePayload({ ...formData })
       if (!isCreate) {
         delete payload.password
       }
@@ -159,9 +181,7 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
       if (parent === 'bankDetails' && child === 'accountNumber') formattedValue = formatBankAccountNumber(value)
       if (parent === 'bankDetails' && child === 'ifsc') {
         formattedValue = formatIfscCode(value)
-        const msg = formattedValue && !isValidIfscCode(formattedValue)
-          ? 'IFSC code format is invalid (e.g., HDFC0001234)'
-          : ''
+        const msg = formattedValue && !isIfscValidOrIncomplete(formattedValue) ? IFSC_FORMAT_HINT : ''
         setErrors((prev) => ({ ...prev, [name]: msg }))
       }
       setFormData((prev) => ({ ...prev, [parent]: { ...(prev[parent] || {}), [child]: formattedValue } }))
@@ -199,6 +219,9 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
       }
     } else {
       setFormData((prev) => ({ ...prev, pendingFiles: { ...(prev.pendingFiles || {}), [docType]: { file, label } } }))
+      const docErrKey =
+        docType === 'bank_statement' ? 'documents_bank_statement' : `documents_${docType}`
+      setErrors((prev) => ({ ...prev, [docErrKey]: '' }))
     }
   }
 
@@ -476,23 +499,42 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
             value={formData.bankDetails?.ifsc || ''}
             onChange={handleNestedChange}
             className={`w-full px-3 py-2 border rounded-lg ${errors['bankDetails.ifsc'] ? 'border-red-500' : 'border-gray-300'}`}
-            placeholder="e.g. HDFC0001234"
+            placeholder="e.g. HDFC0001234 or BARB0KHARAD"
             maxLength={11}
             inputMode="text"
-            pattern="^[A-Z]{4}0[A-Z0-9]{6}$"
+            autoComplete="off"
+            spellCheck={false}
           />
-          <p className="mt-1 text-xs text-gray-500">Format: 4 letters, 0, then 6 alphanumeric (total 11 chars)</p>
+          <p className="mt-1 text-xs text-gray-500">{IFSC_FORMAT_HINT}</p>
           {errors['bankDetails.ifsc'] && (
             <p className="mt-1 text-sm text-red-600">{errors['bankDetails.ifsc']}</p>
           )}
         </div>
       </div>
 
-      {/* Document upload - separate fields (including shop act) */}
+      {/* Document upload — mandatory when creating a franchise */}
+      <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3 space-y-1">
+        <p className="text-sm font-medium text-gray-800">
+          KYC documents {isCreate && <span className="text-red-500">*</span>}
+        </p>
+        {isCreate && (
+          <p className="text-xs text-gray-600">
+            Upload all required files before creating the franchise. Files are stored after the franchise is created.
+          </p>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">PAN Card (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'pan')} />
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            PAN Card (upload) {isCreate && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            className={errors.documents_pan ? 'block w-full text-sm text-red-600 file:mr-2' : 'block w-full text-sm'}
+            onChange={(e) => handleFileChangeForType(e.target.files[0], 'pan')}
+          />
+          {errors.documents_pan && <p className="mt-1 text-sm text-red-600">{errors.documents_pan}</p>}
           {(formData.pendingFiles?.pan || (formData.documents || []).find(d => d.documentType === 'pan')) && (
             <div className="mt-1 text-sm text-gray-600">
               {(formData.documents || []).find(d => d.documentType === 'pan') ? (
@@ -502,8 +544,16 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar Card (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'aadhaar')} />
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Aadhaar Card (upload) {isCreate && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            className={errors.documents_aadhaar ? 'block w-full text-sm text-red-600 file:mr-2' : 'block w-full text-sm'}
+            onChange={(e) => handleFileChangeForType(e.target.files[0], 'aadhaar')}
+          />
+          {errors.documents_aadhaar && <p className="mt-1 text-sm text-red-600">{errors.documents_aadhaar}</p>}
           {(formData.pendingFiles?.aadhaar || (formData.documents || []).find(d => d.documentType === 'aadhaar')) && (
             <div className="mt-1 text-sm text-gray-600">
               {(formData.documents || []).find(d => d.documentType === 'aadhaar') ? (
@@ -512,46 +562,32 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
             </div>
           )}
         </div>
-        {formData.franchiseType === 'GST' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">GST Certificate (upload)</label>
-            <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')} />
-            {(formData.pendingFiles?.gst || (formData.documents || []).find(d => d.documentType === 'gst')) && (
-              <div className="mt-1 text-sm text-gray-600">
-                {(formData.documents || []).find(d => d.documentType === 'gst') ? (
-                  <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'gst'))} className="text-primary-700 underline">Preview uploaded GST</button>
-                ) : <span>File selected (will upload after creation)</span>}
-              </div>
-            )}
-          </div>
-        )}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Statement / Cancelled Cheque (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'bank_statement')} />
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Bank account (upload) {isCreate && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            className={errors.documents_bank_statement ? 'block w-full text-sm text-red-600 file:mr-2' : 'block w-full text-sm'}
+            onChange={(e) => handleFileChangeForType(e.target.files[0], 'bank_statement')}
+          />
+          {errors.documents_bank_statement && (
+            <p className="mt-1 text-sm text-red-600">{errors.documents_bank_statement}</p>
+          )}
           {(formData.pendingFiles?.bank_statement || (formData.documents || []).find(d => d.documentType === 'bank_statement')) && (
             <div className="mt-1 text-sm text-gray-600">
               {(formData.documents || []).find(d => d.documentType === 'bank_statement') ? (
-                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'bank_statement'))} className="text-primary-700 underline">Preview uploaded Bank Document</button>
-              ) : <span>File selected (will upload after creation)</span>}
-            </div>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Shop Act (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'shop_act')} />
-          {(formData.pendingFiles?.shop_act || (formData.documents || []).find(d => d.documentType === 'shop_act')) && (
-            <div className="mt-1 text-sm text-gray-600">
-              {(formData.documents || []).find(d => d.documentType === 'shop_act') ? (
-                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'shop_act'))} className="text-primary-700 underline">Preview uploaded Shop Act</button>
+                <button type="button" onClick={() => openPreview((formData.documents || []).find(d => d.documentType === 'bank_statement'))} className="text-primary-700 underline">Preview uploaded bank account document</button>
               ) : <span>File selected (will upload after creation)</span>}
             </div>
           )}
         </div>
       </div>
 
-      {/* Additional documents */}
+      {/* Additional documents (optional) */}
       <div className="mt-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Add Additional Document</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Add additional document</label>
         <div className="flex gap-2 items-center">
           <input type="text" placeholder="Document description" value={newAdditionalLabel} onChange={(e) => setNewAdditionalLabel(e.target.value)} className="px-3 py-2 border rounded-lg w-1/2" />
           <input type="file" accept="application/pdf,image/*" onChange={(e) => setNewAdditionalFile(e.target.files && e.target.files[0])} />

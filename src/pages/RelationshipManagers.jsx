@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Users, TrendingUp, ChevronDown, ChevronUp, FileDown, Store } from 'lucide-react'
 import IndianRupeeIcon from '../components/IndianRupeeIcon'
-import AgentForm from '../components/AgentForm'
 import api from '../services/api'
+import { authService } from '../services/auth.service'
 import StatusBadge from '../components/StatusBadge'
 import Modal from '../components/Modal'
 import RelationshipManagerForm from '../components/RelationshipManagerForm'
@@ -18,6 +18,8 @@ const RelationshipManagers = () => {
   const [leads, setLeads] = useState([])
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
+  const userRole = authService.getUser()?.role
+  const canCreateRM = userRole === 'super_admin' || userRole === 'regional_manager'
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [cityFilter, setCityFilter] = useState('')
@@ -26,14 +28,12 @@ const RelationshipManagers = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
-  const [isCreateAgentModalOpen, setIsCreateAgentModalOpen] = useState(false)
   const [selectedRM, setSelectedRM] = useState(null)
   const [rmDocs, setRmDocs] = useState([])
   const [loadingRmDocs, setLoadingRmDocs] = useState(false)
   const [isSavingRM, setIsSavingRM] = useState(false)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, rm: null })
-  const [isCreatingAgent, setIsCreatingAgent] = useState(false)
 
   useEffect(() => {
     fetchRelationshipManagers()
@@ -224,78 +224,6 @@ const RelationshipManagers = () => {
     setIsDetailModalOpen(true)
   }
 
-  const handleCreateAgentForRM = (rm) => {
-    setSelectedRM(rm)
-    setIsCreateAgentModalOpen(true)
-  }
-
-  const handleCreateAgentSave = async (formData, files = {}) => {
-    try {
-      setIsCreatingAgent(true)
-      const { phone, ...rest } = formData
-      const agentData = {
-        name: rest.name,
-        email: rest.email,
-        mobile: phone?.trim() || '',
-        password: rest.password || 'Agent@123',
-        role: 'agent',
-        status: rest.status || 'active',
-        agentType: rest.agentType || 'normal',
-        managedBy: rest.managedBy || rest.franchise || rest.managedBy || '',
-        managedByModel: rest.managedByModel || (rest.franchise ? 'Franchise' : 'Franchise'),
-        kyc: rest.kyc || undefined,
-        bankDetails: rest.bankDetails || undefined,
-      }
-
-      const response = await api.agents.create(agentData)
-      const created = response.data || response
-
-      // upload pending files if any
-      const agentId = created._id || created.id || created.data?._id
-      try {
-        const pendingFiles = files.pendingFiles || {}
-        for (const [docType, fileObj] of Object.entries(pendingFiles)) {
-          const file = fileObj?.file
-          const label = fileObj?.label
-          if (file) {
-            const fd = new FormData()
-            fd.append('file', file)
-            fd.append('entityType', 'user')
-            fd.append('entityId', agentId)
-            fd.append('documentType', docType)
-            if (label) fd.append('label', label)
-            await api.documents.upload(fd)
-          }
-        }
-        const additional = files.additionalDocuments || []
-        for (const ad of additional) {
-          const file = ad?.file
-          const label = ad?.label
-          if (file) {
-            const fd = new FormData()
-            fd.append('file', file)
-            fd.append('entityType', 'user')
-            fd.append('entityId', agentId)
-            fd.append('documentType', 'additional')
-            if (label) fd.append('label', label)
-            await api.documents.upload(fd)
-          }
-        }
-      } catch (err) {
-        console.error('Error uploading pending files for new agent:', err)
-      }
-
-      setIsCreateAgentModalOpen(false)
-      toast.success('Success', 'Partner created successfully')
-      await fetchRelationshipManagers()
-    } catch (error) {
-      console.error('Error creating agent:', error)
-      toast.error('Error', error.message || 'Failed to create partner')
-    } finally {
-      setIsCreatingAgent(false)
-    }
-  }
-
   useEffect(() => {
     if (isDetailModalOpen && selectedRM) {
       const rmId = selectedRM.id || selectedRM._id
@@ -327,7 +255,7 @@ const RelationshipManagers = () => {
         try {
           const rmId = created._id || created.id || created.data?._id
           const pendingFile = files.pendingFile
-          if (pendingFile) {
+          if (pendingFile && rmId) {
             const fd = new FormData()
             fd.append('file', pendingFile)
             fd.append('entityType', 'user')
@@ -413,13 +341,15 @@ const RelationshipManagers = () => {
             <FileDown className="w-5 h-5" />
             <span>Export to Excel</span>
           </button>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Relationship Manager</span>
-          </button>
+          {canCreateRM && (
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Create Relationship Manager</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -584,7 +514,7 @@ const RelationshipManagers = () => {
 
               <div>
                 <label className="text-sm font-medium text-gray-500">Email</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedRM.email || 'N/A'}</p>
+                <p className="mt-1 text-sm text-gray-900 email-lowercase" data-email="true">{selectedRM.email || 'N/A'}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Mobile</label>
@@ -698,10 +628,7 @@ const RelationshipManagers = () => {
             </div>
 
             <div className="pt-4 border-t border-gray-200">
-              <div className="flex flex-col gap-2">
-                <button onClick={() => { setIsDetailModalOpen(false); handleEdit(selectedRM) }} className="w-full px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors">Edit Relationship Manager</button>
-                <button onClick={() => { setIsDetailModalOpen(false); handleCreateAgentForRM(selectedRM) }} className="w-full px-4 py-2 bg-primary-700 text-white rounded-lg hover:bg-primary-600 transition-colors">Create Partner</button>
-              </div>
+              <button onClick={() => { setIsDetailModalOpen(false); handleEdit(selectedRM) }} className="w-full px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors">Edit Relationship Manager</button>
             </div>
           </div>
         )}
@@ -717,16 +644,6 @@ const RelationshipManagers = () => {
         cancelText="Cancel"
         type="danger"
       />
-      <Modal isOpen={isCreateAgentModalOpen} onClose={() => { setIsCreateAgentModalOpen(false); setSelectedRM(null) }} title={`Create Partner${selectedRM ? ` for ${selectedRM.name}` : ''}`} size="md">
-        <AgentForm
-          onSave={handleCreateAgentSave}
-          onClose={() => { setIsCreateAgentModalOpen(false); setSelectedRM(null) }}
-          isSaving={isCreatingAgent}
-          fixedManagedBy={selectedRM ? (selectedRM._id || selectedRM.id) : null}
-          fixedManagedByModel="RelationshipManager"
-          hideManagedBySelector={true}
-        />
-      </Modal>
     </div>
   )
 }

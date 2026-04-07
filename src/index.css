@@ -40,6 +40,17 @@ html {
   scrollbar-width: thin;
 }
 
+/* Render all table body data in uppercase */
+table tbody td {
+  text-transform: uppercase;
+}
+
+/* But keep email ids lowercase (mark the value with .email-lowercase or data-email="true") */
+.email-lowercase,
+[data-email="true"] {
+  text-transform: lowercase !important;
+}
+
 .table-wrapper::-webkit-scrollbar {
   height: 6px;
 }

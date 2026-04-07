@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Upload, X, File } from 'lucide-react'
 import { toast } from '../services/toastService'
 import api from '../services/api'
-import { formatIfscCode, isValidIfscCode } from '../utils/identifierFormatters'
+import { formatBankAccountNumber, formatIfscCode, IFSC_FORMAT_HINT, isIfscValidOrIncomplete, isValidIfscCode } from '../utils/identifierFormatters'
 
 const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
   const [formData, setFormData] = useState({
@@ -29,26 +29,9 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
   const [loading, setLoading] = useState(false)
   const [leadPreview, setLeadPreview] = useState(null)
 
-  const formatMobile = (value) => {
-    const text = value === undefined || value === null ? '' : String(value)
-    return text.replace(/\D/g, '').slice(0, 10)
-  }
-
-  const formatLoanAccountNo = (value) => {
-    const text = value === undefined || value === null ? '' : String(value)
-    const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18)
-    if (cleaned.length > 0 && cleaned.length < 9) return ''
-    return cleaned
-  }
-
-  const formatPan = (value) => {
-    const text = value === undefined || value === null ? '' : String(value)
-    return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)
-  }
-
-  const formatAadhaar = (value) => {
-    const text = value === undefined || value === null ? '' : String(value)
-    return text.replace(/\D/g, '').slice(0, 12)
+  const formatLoanTypeLabel = (loanType) => {
+    if (!loanType || typeof loanType !== 'string') return 'N/A'
+    return loanType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   }
 
   useEffect(() => {
@@ -64,11 +47,11 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
         remarks: payout.remarks || '',
         invoices: payout.invoices?.map((inv) => inv._id || inv.id || inv) || [],
       })
-      setBankDetails(payout.bankDetails || {
-        accountHolderName: '',
-        accountNumber: '',
-        ifsc: '',
-        bankName: '',
+      setBankDetails({
+        accountHolderName: payout.bankDetails?.accountHolderName || '',
+        accountNumber: formatBankAccountNumber(payout.bankDetails?.accountNumber || ''),
+        ifsc: payout.bankDetails?.ifsc || '',
+        bankName: payout.bankDetails?.bankName || '',
       })
     }
   }, [payout])
@@ -110,11 +93,19 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
         lead?.agent ||
         ''
 
-      // Franchise can come from either:
-      // 1) lead.associated (when associatedModel === 'Franchise')
-      // 2) lead.agent.managedBy (when agent.managedByModel === 'Franchise')
+      // For payouts backend requires `franchise` (ObjectId). In our hierarchy a lead can be associated to:
+      // - Franchise (associatedModel === 'Franchise')  → use lead.associated
+      // - RelationshipManager (associatedModel === 'RelationshipManager') → store lead.associated in `franchise` as well
+      //   (backend schema expects `franchise` ref; ObjectId is still accepted even if populate can't resolve)
+      // - Otherwise infer from agent.managedBy when agent.managedByModel === 'Franchise'
       let franchiseId = ''
       if (lead?.associatedModel === 'Franchise') {
+        franchiseId =
+          lead?.associated?._id ||
+          lead?.associated?.id ||
+          lead?.associated ||
+          ''
+      } else if (lead?.associatedModel === 'RelationshipManager') {
         franchiseId =
           lead?.associated?._id ||
           lead?.associated?.id ||
@@ -138,46 +129,46 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
         const res = await api.leads.getById(leadId)
         const lead = res?.data || res
 
-        const leadMobile =
-          lead?.applicantMobile ||
-          lead?.phone ||
-          lead?.mobile ||
-          lead?.formValues?.applicantMobile ||
-          lead?.formValues?.mobile ||
-          ''
-        const leadEmail = lead?.applicantEmail || lead?.email || lead?.formValues?.applicantEmail || lead?.formValues?.email || ''
-        const leadPan =
-          lead?.panNumber ||
-          lead?.formValues?.panNumber ||
-          ''
-        const leadAadhaar =
-          lead?.aadhaarNumber ||
-          lead?.formValues?.aadhaarNumber ||
-          ''
+        const fv =
+          lead?.formValues && typeof lead.formValues === 'object' && !Array.isArray(lead.formValues)
+            ? lead.formValues
+            : {}
         const leadLan =
           lead?.loanAccountNo ||
           lead?.loanAccountNumber ||
-          lead?.formValues?.loanAccountNo ||
-          lead?.formValues?.loanAccountNumber ||
+          fv.loanAccountNo ||
+          fv.loanAccountNumber ||
+          fv.lan ||
+          fv.lanNumber ||
+          fv.account_no ||
+          fv.loan_acc_no ||
           ''
+        const loanAccountDisplay = String(leadLan).trim() || 'N/A'
+        const bankDisplay =
+          (typeof lead?.bank === 'object' && lead?.bank?.name) ||
+          lead?.bankName ||
+          fv.bankName ||
+          fv.bank ||
+          'N/A'
 
         setLeadPreview({
-          leadLabel: lead?.customerName || lead?.leadName || lead?.loanAccountNo || lead?.leadId || 'N/A',
-          loanAccountNo: formatLoanAccountNo(leadLan),
-          loanAmount: lead?.loanAmount || lead?.amount || lead?.disbursedAmount || 0,
-          applicantMobile: formatMobile(leadMobile),
-          applicantEmail: leadEmail || 'N/A',
-          panNumber: formatPan(leadPan),
-          aadhaarNumber: formatAadhaar(leadAadhaar),
+          customerName:
+            lead?.customerName ||
+            fv.customerName ||
+            fv.leadName ||
+            fv.name ||
+            fv.applicant_name ||
+            lead?.leadName ||
+            'N/A',
+          loanAmount: lead?.loanAmount ?? lead?.amount ?? 0,
+          loanAccountNo: loanAccountDisplay,
+          bankName: bankDisplay,
+          loanTypeLabel: formatLoanTypeLabel(lead?.loanType || fv.loanType),
         })
 
         const { agentId: fetchedAgentId, franchiseId: fetchedFranchiseId } = resolveFromLeadObject(lead)
 
-        if (!fetchedAgentId) {
-          toast.error('Error', 'Selected lead is missing Agent information.')
-        }
-        // No toast here: payout backend will validate required fields.
-        // We only want to auto-fill confirmation fields silently.
+        // Don't block the user here; just auto-fill whatever is available.
 
         setFormData((prev) => ({
           ...prev,
@@ -197,11 +188,10 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
     const { name, value } = e.target
     let formattedValue = value
     if (name === 'ifsc') formattedValue = formatIfscCode(value)
+    if (name === 'accountNumber') formattedValue = formatBankAccountNumber(value)
     setBankDetails((prev) => ({ ...prev, [name]: formattedValue }))
     if (name === 'ifsc') {
-      const msg = formattedValue && !isValidIfscCode(formattedValue)
-        ? 'IFSC code format is invalid (e.g., HDFC0001234)'
-        : ''
+      const msg = formattedValue && !isIfscValidOrIncomplete(formattedValue) ? IFSC_FORMAT_HINT : ''
       setErrors((prev) => ({ ...prev, ifsc: msg }))
     }
   }
@@ -249,8 +239,10 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
       toast.error('Error', 'Lead is required')
       return
     }
+    // Backend requires agent + franchise for payouts.
+    // If the selected lead isn't mapped, block early with a clear message.
     if (!formData.agent || !formData.franchise) {
-      toast.error('Error', 'Selected lead is missing agent or franchise')
+      toast.error('Error', 'This lead is not mapped to a Partner/Franchise. Please map it first, then create payout.')
       return
     }
     if (!formData.totalAmount || parseFloat(formData.totalAmount) <= 0) {
@@ -263,7 +255,7 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
     }
     const ifsc = bankDetails.ifsc?.trim() || ''
     if (ifsc && !isValidIfscCode(ifsc)) {
-      const msg = 'IFSC code format is invalid (e.g., HDFC0001234)'
+      const msg = IFSC_FORMAT_HINT
       setErrors((prev) => ({ ...prev, ifsc: msg }))
       toast.error('Error', msg)
       return
@@ -279,6 +271,7 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
         // Use FormData when uploading a receipt
         setUploading(true)
         const fd = new FormData()
+        fd.append('leadId', formData.leadId)
         fd.append('agent', formData.agent)
         fd.append('franchise', formData.franchise)
         fd.append('totalAmount', formData.totalAmount)
@@ -293,6 +286,7 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
       } else {
         // No file → JSON payload
         payload = {
+          leadId: formData.leadId,
           agent: formData.agent,
           franchise: formData.franchise,
           totalAmount: parseFloat(formData.totalAmount),
@@ -410,34 +404,29 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
 
       {leadPreview && (
         <div className="border-t pt-4">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Lead summary</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <div className="text-sm font-medium text-gray-700">Lead</div>
-              <div className="text-sm text-gray-900 mt-1">{leadPreview.leadLabel}</div>
+              <div className="text-sm font-medium text-gray-700">Customer name</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.customerName}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-700">Loan Amount (₹)</div>
-              <div className="text-sm text-gray-900 mt-1">{leadPreview.loanAmount?.toLocaleString?.('en-IN') || leadPreview.loanAmount || 0}</div>
+              <div className="text-sm font-medium text-gray-700">Loan amount (₹)</div>
+              <div className="text-sm text-gray-900 mt-1">
+                {Number(leadPreview.loanAmount).toLocaleString('en-IN')}
+              </div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-700">Loan Account No</div>
-              <div className="text-sm text-gray-900 mt-1">{leadPreview.loanAccountNo || 'N/A'}</div>
+              <div className="text-sm font-medium text-gray-700">Loan account no</div>
+              <div className="text-sm text-gray-900 mt-1 font-mono">{leadPreview.loanAccountNo}</div>
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-700">Mobile</div>
-              <div className="text-sm text-gray-900 mt-1">{leadPreview.applicantMobile || 'N/A'}</div>
+              <div className="text-sm font-medium text-gray-700">Bank name</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.bankName}</div>
             </div>
-            <div>
-              <div className="text-sm font-medium text-gray-700">Email</div>
-              <div className="text-sm text-gray-900 mt-1">{leadPreview.applicantEmail || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-700">PAN</div>
-              <div className="text-sm text-gray-900 mt-1">{leadPreview.panNumber || 'N/A'}</div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-700">Aadhaar</div>
-              <div className="text-sm text-gray-900 mt-1">{leadPreview.aadhaarNumber || 'N/A'}</div>
+            <div className="sm:col-span-2">
+              <div className="text-sm font-medium text-gray-700">Loan type</div>
+              <div className="text-sm text-gray-900 mt-1">{leadPreview.loanTypeLabel}</div>
             </div>
           </div>
         </div>
@@ -465,6 +454,9 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
               value={bankDetails.accountNumber}
               onChange={handleBankDetailsChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="Enter account number"
             />
           </div>
           <div>
@@ -475,11 +467,13 @@ const PayoutForm = ({ payout = null, onSave, onClose, leads = [] }) => {
               value={bankDetails.ifsc}
               onChange={handleBankDetailsChange}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.ifsc ? 'border-red-500' : 'border-gray-300'}`}
-              placeholder="e.g. HDFC0001234"
+              placeholder="e.g. HDFC0001234 or BARB0KHARAD"
               maxLength={11}
               inputMode="text"
-              pattern="^[A-Z]{4}0[A-Z0-9]{6}$"
+              autoComplete="off"
+              spellCheck={false}
             />
+            <p className="mt-1 text-xs text-gray-500">{IFSC_FORMAT_HINT}</p>
             {errors.ifsc && <p className="mt-1 text-sm text-red-600">{errors.ifsc}</p>}
           </div>
           <div>

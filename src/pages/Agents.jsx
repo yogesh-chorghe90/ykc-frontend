@@ -289,6 +289,8 @@ const Agents = () => {
     )
   }
 
+  const canCreatePartner = userRole === 'super_admin' || userRole === 'regional_manager'
+
   const handleCreate = () => {
     setSelectedAgent(null)
     setIsCreateModalOpen(true)
@@ -346,13 +348,11 @@ const Agents = () => {
     setIsSaving(true)
     try {
       if (selectedAgent) {
-        // Update existing agent
         const agentId = selectedAgent.id || selectedAgent._id
         if (!agentId) {
           toast.error('Error', 'Partner ID is missing')
           return
         }
-        // Map frontend fields to backend fields
         const updateData = {
           name: formData.name,
           email: formData.email,
@@ -366,18 +366,17 @@ const Agents = () => {
         }
         await api.agents.update(agentId, updateData)
         await fetchAgents()
-        await fetchLeads() // Refresh leads to update statistics
-        await fetchInvoices() // Refresh invoices to update commission
+        await fetchLeads()
+        await fetchInvoices()
         setIsEditModalOpen(false)
         toast.success('Success', 'Partner updated successfully')
+        setSelectedAgent(null)
       } else {
         const { phone, ...rest } = formData
-
         if (!phone || !phone.trim()) {
           toast.error('Error', 'Phone number is required')
           return
         }
-
         const agentData = {
           name: rest.name,
           email: rest.email,
@@ -386,30 +385,20 @@ const Agents = () => {
           role: 'agent',
           status: rest.status || 'active',
           agentType: rest.agentType || 'normal',
-          // New unified API expects managedBy + managedByModel for agents.
-          // Fall back to legacy `franchise` if provided.
           managedBy: rest.managedBy || rest.franchise || '',
           managedByModel: rest.managedByModel || (rest.franchise ? 'Franchise' : 'Franchise'),
           kyc: rest.kyc || undefined,
           bankDetails: rest.bankDetails || undefined,
         }
-
-        console.log('🔍 DEBUG: Creating agent with data:', JSON.stringify(agentData, null, 2))
-
         const response = await api.agents.create(agentData)
         const created = response.data || response
-        await fetchAgents()
-        await fetchLeads() // Refresh leads to update statistics
-        await fetchInvoices() // Refresh invoices to update commission
-        // After creating agent, upload pending files (if any)
         const agentId = created._id || created.id || created.data?._id
         try {
-          // pendingFiles: { docType: { file, label } }
           const pendingFiles = files.pendingFiles || {}
           for (const [docType, fileObj] of Object.entries(pendingFiles)) {
             const file = fileObj?.file
             const label = fileObj?.label
-            if (file) {
+            if (file && agentId) {
               const fd = new FormData()
               fd.append('file', file)
               fd.append('entityType', 'user')
@@ -419,12 +408,11 @@ const Agents = () => {
               await api.documents.upload(fd)
             }
           }
-          // additionalDocuments array (each item may have file and label)
           const additional = files.additionalDocuments || []
           for (const ad of additional) {
             const file = ad?.file
             const label = ad?.label
-            if (file) {
+            if (file && agentId) {
               const fd = new FormData()
               fd.append('file', file)
               fd.append('entityType', 'user')
@@ -437,11 +425,12 @@ const Agents = () => {
         } catch (err) {
           console.error('Error uploading pending files for new agent:', err)
         }
-
+        await fetchAgents()
+        await fetchLeads()
+        await fetchInvoices()
         setIsCreateModalOpen(false)
         toast.success('Success', 'Partner created successfully')
       }
-      setSelectedAgent(null)
     } catch (error) {
       console.error('Error saving agent:', error)
       toast.error('Error', error.message || 'Failed to save agent')
@@ -532,15 +521,17 @@ const Agents = () => {
           <h1 className="text-2xl font-bold text-gray-900">Partners Management</h1>
           <p className="text-sm text-gray-600 mt-1">Manage agent profiles and performance</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Partner</span>
-          </button>
-        </div>
+        {canCreatePartner && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Create Partner</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Compact Summary Bar - Mobile Only */}
@@ -784,7 +775,7 @@ const Agents = () => {
                         <div className="text-sm font-medium text-gray-900">{agent.name || 'N/A'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{agent.email || 'N/A'}</div>
+                        <div className="text-sm text-gray-900 email-lowercase" data-email="true">{agent.email || 'N/A'}</div>
                         <div className="text-sm text-gray-500">{agent.mobile || agent.phone || 'N/A'}</div>
                       </td>
                       {!hideAssociated && (
@@ -898,7 +889,7 @@ const Agents = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Email</label>
-                <p className="mt-1 text-sm text-gray-900">{selectedAgent.email}</p>
+                <p className="mt-1 text-sm text-gray-900 email-lowercase" data-email="true">{selectedAgent.email}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Phone</label>
@@ -941,7 +932,7 @@ const Agents = () => {
                     <label className="text-sm font-medium text-gray-500">
                       {selectedAgent.managedByModel === 'RelationshipManager' ? 'RM Email' : 'Franchise Email'}
                     </label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedAgent.managedBy.email}</p>
+                    <p className="mt-1 text-sm text-gray-900 email-lowercase" data-email="true">{selectedAgent.managedBy.email}</p>
                   </div>
                 )}
                 {selectedAgent.managedBy?.phone && (

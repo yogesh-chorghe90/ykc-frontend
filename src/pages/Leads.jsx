@@ -13,7 +13,7 @@ import { canExportData } from '../utils/roleUtils'
 import AccountantLeads from './AccountantLeads'
 import { formatInCrores } from '../utils/formatUtils'
 import { formatMobileNumber } from '../utils/identifierFormatters'
-
+import { humanizeDocumentType, mergeLeadDocumentsFromApiAndEmbedded } from '../utils/leadDocuments'
 
 const Leads = () => {
   const userRole = authService.getUser()?.role || 'super_admin'
@@ -44,6 +44,7 @@ const Leads = () => {
   const [bankFilter, setBankFilter] = useState('')
   const [dsaCodeFilter, setDsaCodeFilter] = useState('')
   const [loanTypeFilter, setLoanTypeFilter] = useState('all')
+  const [advancePaymentFilter, setAdvancePaymentFilter] = useState('')
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(true)
@@ -432,6 +433,12 @@ const Leads = () => {
         if (!leadType.includes(loanTypeFilter.trim().toLowerCase())) return false
       }
 
+      // Advance Payment filter
+      if (advancePaymentFilter !== '') {
+        const isAdvancePayment = advancePaymentFilter === 'yes'
+        if (lead.advancePayment !== isAdvancePayment) return false
+      }
+
       // Date range filtering
       if (dateFromFilter || dateToFilter) {
         const leadDate = lead.createdAt ? new Date(lead.createdAt) : null
@@ -466,9 +473,9 @@ const Leads = () => {
         loanAccountNo.toLowerCase().includes(searchLower)
       )
     })
-  }, [leads, searchTerm, statusFilter, franchiseFilter, agentFilter, bankFilter, dsaCodeFilter, loanTypeFilter, dateFromFilter, dateToFilter])
+  }, [leads, searchTerm, statusFilter, franchiseFilter, agentFilter, bankFilter, dsaCodeFilter, loanTypeFilter, advancePaymentFilter, dateFromFilter, dateToFilter])
 
-  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || franchiseFilter !== '' || agentFilter !== '' || bankFilter !== '' || dsaCodeFilter.trim() !== '' || (loanTypeFilter && loanTypeFilter !== 'all') || dateFromFilter !== '' || dateToFilter !== ''
+  const hasActiveFilters = searchTerm !== '' || statusFilter !== 'all' || franchiseFilter !== '' || agentFilter !== '' || bankFilter !== '' || dsaCodeFilter.trim() !== '' || (loanTypeFilter && loanTypeFilter !== 'all') || advancePaymentFilter !== '' || dateFromFilter !== '' || dateToFilter !== ''
   
   // Calculate total loan amount from filtered leads
   const totalFilteredLoanAmount = useMemo(() => {
@@ -486,6 +493,7 @@ const Leads = () => {
     setBankFilter('')
     setDsaCodeFilter('')
     setLoanTypeFilter('all')
+    setAdvancePaymentFilter('')
     setDateFromFilter('')
     setDateToFilter('')
   }
@@ -555,14 +563,16 @@ const Leads = () => {
     if (leadId) {
       try {
         setLoadingDetailAttachments(true)
-        const res = await api.documents.list('lead', leadId)
+        const res = await api.documents.list('lead', leadId, { limit: 200 })
         const docs = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []
-        setDetailAttachments(docs.filter(d => d.documentType === 'attachment'))
+        setDetailAttachments(mergeLeadDocumentsFromApiAndEmbedded(docs, lead?.documents))
       } catch (_) {
-        setDetailAttachments([])
+        setDetailAttachments(mergeLeadDocumentsFromApiAndEmbedded([], lead?.documents))
       } finally {
         setLoadingDetailAttachments(false)
       }
+    } else if (lead?.documents?.length) {
+      setDetailAttachments(mergeLeadDocumentsFromApiAndEmbedded([], lead.documents))
     }
   }
 
@@ -1416,6 +1426,18 @@ const Leads = () => {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Advance Payment</label>
+                <select
+                  value={advancePaymentFilter}
+                  onChange={(e) => setAdvancePaymentFilter(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">All</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date From</label>
                 <input
                   type="date"
@@ -1538,7 +1560,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.applicantEmail || lead.email || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{lead.applicantEmail || lead.email || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -1732,7 +1754,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.agent?.email || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{lead.agent?.email || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -1843,7 +1865,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.subAgent?.email || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{lead.subAgent?.email || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -1924,7 +1946,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{associatedEmail}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{associatedEmail}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -2014,7 +2036,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.referralFranchise?.email || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{lead.referralFranchise?.email || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -2106,7 +2128,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.bank?.contactEmail || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{lead.bank?.contactEmail || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -2203,7 +2225,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.smBmEmail || (lead.smBm?.email) || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{lead.smBmEmail || (lead.smBm?.email) || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -2278,7 +2300,7 @@ const Leads = () => {
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs text-gray-600">Email:</span>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-gray-900">{lead.asmEmail || 'N/A'}</span>
+                                      <span className="text-xs text-gray-900 email-lowercase" data-email="true">{lead.asmEmail || 'N/A'}</span>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -2317,7 +2339,7 @@ const Leads = () => {
                       case 'loanAccountNo':
                         return <div className="text-sm text-gray-900">{lead.loanAccountNo || 'N/A'}</div>
                       case 'advancePayment':
-                        return <div className="text-sm text-gray-900">{lead.advancePayment ? 'True' : 'False'}</div>
+                        return <div className="text-sm text-gray-900">{lead.advancePayment ? 'Yes' : 'No'}</div>
                       case 'disbursementDate':
                         return <div className="text-sm text-gray-900">{lead.disbursementDate ? new Date(lead.disbursementDate).toLocaleDateString() : 'N/A'}</div>
                       case 'sanctionedDate':
@@ -2468,7 +2490,7 @@ const Leads = () => {
                 case 'loanAccountNo':
                   return lead.loanAccountNo || 'N/A'
                 case 'advancePayment':
-                  return lead.advancePayment ? 'True' : 'False'
+                  return lead.advancePayment ? 'Yes' : 'No'
                 default:
                   return 'N/A'
               }
@@ -2801,12 +2823,12 @@ const Leads = () => {
               </div>
             </div>
 
-            {/* Attachments Section */}
+            {/* Documents & uploads (KYC, attachments, etc.) */}
             <div className="border-t border-gray-200 pt-4">
               <div className="flex items-center gap-2 mb-3">
                 <Paperclip className="w-4 h-4 text-gray-500" />
                 <span className="text-sm font-semibold text-gray-700">
-                  Attachments
+                  Documents &amp; files
                   {detailAttachments.length > 0 && (
                     <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
                       {detailAttachments.length}
@@ -2817,19 +2839,24 @@ const Leads = () => {
               {loadingDetailAttachments ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
                   <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
-                  Loading attachments…
+                  Loading documents…
                 </div>
               ) : detailAttachments.length > 0 ? (
                 <div className="space-y-2">
-                  {detailAttachments.map((att) => {
-                    const name = att.fileName || att.originalFileName || att.name || 'Attachment'
+                  {detailAttachments.map((att, idx) => {
+                    const name = att.fileName || att.originalFileName || att.name || 'File'
                     const ext = name.split('.').pop()?.toLowerCase() || ''
                     const isImage = ['jpg','jpeg','png','gif','webp'].includes(ext)
                     const isPdf = ext === 'pdf'
                     const sizeKB = att.fileSize ? (att.fileSize / 1024).toFixed(1) : null
+                    const docId = att.id || att._id
+                    const openDoc = () => {
+                      if (docId) api.documents.open(docId)
+                      else if (att.url) window.open(att.url, '_blank', 'noopener,noreferrer')
+                    }
                     return (
                       <div
-                        key={att.id || att._id}
+                        key={docId ? String(docId) : `${att.url || ''}-${idx}`}
                         className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors group"
                       >
                         <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${
@@ -2838,13 +2865,15 @@ const Leads = () => {
                           {isPdf ? 'PDF' : ext.toUpperCase().slice(0,3) || '📎'}
                         </div>
                         <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">{humanizeDocumentType(att.documentType)}</p>
                           <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
                           {sizeKB && <p className="text-xs text-gray-500">{sizeKB} KB</p>}
                         </div>
                         <button
                           type="button"
-                          onClick={() => api.documents.open(att.id || att._id)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex-shrink-0"
+                          onClick={openDoc}
+                          disabled={!docId && !att.url}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 disabled:pointer-events-none"
                           title="Open in new tab"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
@@ -2855,7 +2884,7 @@ const Leads = () => {
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-gray-400 py-1">No attachments for this customer</p>
+                <p className="text-sm text-gray-400 py-1">No documents uploaded for this customer</p>
               )}
             </div>
 

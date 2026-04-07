@@ -2,7 +2,15 @@ import { useState, useEffect, useMemo } from 'react'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
 import Modal from './Modal'
-import { formatGstNumber, formatIfscCode, isValidGstNumber, isValidIfscCode } from '../utils/identifierFormatters'
+import {
+  formatGstNumber,
+  formatIfscCode,
+  IFSC_FORMAT_HINT,
+  isIfscValidOrIncomplete,
+  isValidGstNumber,
+  isValidIfscCode,
+} from '../utils/identifierFormatters'
+import { uppercasePayload } from '../utils/uppercasePayload'
 
 const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = null, fixedManagedByModel = null, hideManagedBySelector = false }) => {
   const currentUser = useMemo(() => authService.getUser(), [])
@@ -187,19 +195,30 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
     if (!data.managedBy) newErrors.managedBy = `${data.managedByModel === 'Franchise' ? 'Franchise' : 'Relationship Manager'} is required`
 
     const ifsc = data.bankDetails?.ifsc?.trim() || ''
-    if (ifsc && !isValidIfscCode(ifsc)) newErrors['bankDetails.ifsc'] = 'IFSC code format is invalid (e.g., HDFC0001234)'
+    if (ifsc && !isValidIfscCode(ifsc)) newErrors['bankDetails.ifsc'] = IFSC_FORMAT_HINT
     const gst = data.kyc?.gst?.trim() || ''
     if (gst && !isValidGstNumber(gst)) newErrors['kyc.gst'] = 'GST number format is invalid (e.g., 27ABCDE1234F1Z5)'
 
     // Password validation - required for new agents, optional for updates
     if (!agent) {
-      if (!formData.password || formData.password.length < 6) {
+      if (!data.password || data.password.length < 6) {
         newErrors.password = 'Password is required and must be at least 6 characters'
       }
-    } else {
-      if (formData.password && formData.password.length < 6) {
-        newErrors.password = 'Password must be at least 6 characters'
+      // KYC file uploads are mandatory when creating a partner (uploads apply after user is created)
+      const pf = data.pendingFiles || {}
+      const docs = data.documents || []
+      const hasDocFile = (type) =>
+        Boolean(pf[type]?.file) || docs.some((d) => d.documentType === type)
+      if (!hasDocFile('pan')) newErrors.documents_pan = 'PAN card upload is required'
+      if (!hasDocFile('aadhaar')) newErrors.documents_aadhaar = 'Aadhaar card upload is required'
+      if (!hasDocFile('bank_statement')) {
+        newErrors.documents_bank_statement = 'Bank statement or cancelled cheque upload is required'
       }
+      if (data.agentType === 'GST' && !hasDocFile('gst')) {
+        newErrors.documents_gst = 'GST certificate upload is required'
+      }
+    } else if (data.password && data.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters'
     }
 
     setErrors(newErrors)
@@ -223,7 +242,7 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       return formData
     }
 
-    const resolved = resolveManagedByIfNeeded()
+    const resolved = uppercasePayload(resolveManagedByIfNeeded())
     setFormData(resolved)
     if (validate(resolved)) {
       const files = {
@@ -242,9 +261,7 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       const [parent, child] = name.split('.')
       if (parent === 'bankDetails' && child === 'ifsc') {
         value = formatIfscCode(value)
-        const msg = value && !isValidIfscCode(value)
-          ? 'IFSC code format is invalid (e.g., HDFC0001234)'
-          : ''
+        const msg = value && !isIfscValidOrIncomplete(value) ? IFSC_FORMAT_HINT : ''
         setErrors((prev) => ({ ...prev, [name]: msg }))
       } else if (parent === 'kyc' && child === 'gst') {
         value = formatGstNumber(value)
@@ -259,6 +276,9 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       }))
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }))
+      if (name === 'agentType' && value !== 'GST') {
+        setErrors((prev) => ({ ...prev, documents_gst: '' }))
+      }
     }
     // Clear error when user starts typing
     if (errors[name] && name !== 'bankDetails.ifsc' && name !== 'kyc.gst') {
@@ -318,6 +338,9 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
     } else {
       // For new agents, keep pending file in pendingFiles keyed by docType
       setFormData((prev) => ({ ...prev, pendingFiles: { ...(prev.pendingFiles || {}), [docType]: { file, label } } }))
+      const docErrKey =
+        docType === 'bank_statement' ? 'documents_bank_statement' : `documents_${docType}`
+      setErrors((prev) => ({ ...prev, [docErrKey]: '' }))
     }
   }
 
@@ -648,22 +671,40 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
             value={formData.bankDetails?.ifsc || ''}
             onChange={handleChange}
             className={`w-full px-3 py-2 border rounded-lg ${errors['bankDetails.ifsc'] ? 'border-red-500' : 'border-gray-300'}`}
-            placeholder="e.g. HDFC0001234"
+            placeholder="e.g. HDFC0001234 or BARB0KHARAD"
             maxLength={11}
             inputMode="text"
-            pattern="^[A-Z]{4}0[A-Z0-9]{6}$"
+            autoComplete="off"
+            spellCheck={false}
           />
+          <p className="mt-1 text-xs text-gray-500">{IFSC_FORMAT_HINT}</p>
           {errors['bankDetails.ifsc'] && (
             <p className="mt-1 text-sm text-red-600">{errors['bankDetails.ifsc']}</p>
           )}
         </div>
       </div>
 
-      {/* Document upload - separate fields */}
+      {/* Document upload - mandatory for new partners */}
+      <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3 space-y-1">
+        <p className="text-sm font-medium text-gray-800">
+          KYC documents {!agent && <span className="text-red-500">*</span>}
+        </p>
+        {!agent && (
+          <p className="text-xs text-gray-600">Upload all required files before creating the partner. Files are stored after the account is created.</p>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">PAN Card (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'pan')} />
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            PAN Card (upload) {!agent && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            className={errors.documents_pan ? 'block w-full text-sm text-red-600 file:mr-2' : 'block w-full text-sm'}
+            onChange={(e) => handleFileChangeForType(e.target.files[0], 'pan')}
+          />
+          {errors.documents_pan && <p className="mt-1 text-sm text-red-600">{errors.documents_pan}</p>}
           {(formData.pendingFiles?.pan || (formData.documents || []).find(d => d.documentType === 'pan')) && (
             <div className="mt-1 text-sm text-gray-600">
               {(formData.documents || []).find(d => d.documentType === 'pan') ? (
@@ -675,8 +716,16 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar Card (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'aadhaar')} />
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Aadhaar Card (upload) {!agent && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            className={errors.documents_aadhaar ? 'block w-full text-sm text-red-600 file:mr-2' : 'block w-full text-sm'}
+            onChange={(e) => handleFileChangeForType(e.target.files[0], 'aadhaar')}
+          />
+          {errors.documents_aadhaar && <p className="mt-1 text-sm text-red-600">{errors.documents_aadhaar}</p>}
           {(formData.pendingFiles?.aadhaar || (formData.documents || []).find(d => d.documentType === 'aadhaar')) && (
             <div className="mt-1 text-sm text-gray-600">
               {(formData.documents || []).find(d => d.documentType === 'aadhaar') ? (
@@ -687,8 +736,16 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
         </div>
         {formData.agentType === 'GST' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">GST Certificate (upload)</label>
-            <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              GST Certificate (upload) {!agent && <span className="text-red-500">*</span>}
+            </label>
+            <input
+              type="file"
+              accept="application/pdf,image/*"
+              className={errors.documents_gst ? 'block w-full text-sm text-red-600 file:mr-2' : 'block w-full text-sm'}
+              onChange={(e) => handleFileChangeForType(e.target.files[0], 'gst')}
+            />
+            {errors.documents_gst && <p className="mt-1 text-sm text-red-600">{errors.documents_gst}</p>}
             {(formData.pendingFiles?.gst || (formData.documents || []).find(d => d.documentType === 'gst')) && (
               <div className="mt-1 text-sm text-gray-600">
                 {(formData.documents || []).find(d => d.documentType === 'gst') ? (
@@ -699,8 +756,18 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
           </div>
         )}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Statement / Cancelled Cheque (upload)</label>
-          <input type="file" accept="application/pdf,image/*" onChange={(e) => handleFileChangeForType(e.target.files[0], 'bank_statement')} />
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Bank Statement / Cancelled Cheque (upload) {!agent && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            className={errors.documents_bank_statement ? 'block w-full text-sm text-red-600 file:mr-2' : 'block w-full text-sm'}
+            onChange={(e) => handleFileChangeForType(e.target.files[0], 'bank_statement')}
+          />
+          {errors.documents_bank_statement && (
+            <p className="mt-1 text-sm text-red-600">{errors.documents_bank_statement}</p>
+          )}
           {(formData.pendingFiles?.bank_statement || (formData.documents || []).find(d => d.documentType === 'bank_statement')) && (
             <div className="mt-1 text-sm text-gray-600">
               {(formData.documents || []).find(d => d.documentType === 'bank_statement') ? (

@@ -147,7 +147,7 @@ const Sidebar = ({ onMinimizeChange, isMobile = false, isOpen = false, onClose }
                   title={isMinimized && !isMobile ? item.label : ''}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {(!isMinimized || isMobile) && <span className="text-sm">{item.label}</span>}
+                  {(!isMinimized || isMobile) && <span className="text-sm uppercase">{item.label}</span>}
                 </NavLink>
               )
             })}
@@ -178,7 +178,7 @@ const Sidebar = ({ onMinimizeChange, isMobile = false, isOpen = false, onClose }
                   title={isMinimized && !isMobile ? item.label : ''}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  {(!isMinimized || isMobile) && <span className="text-sm">{item.label}</span>}
+                  {(!isMinimized || isMobile) && <span className="text-sm uppercase">{item.label}</span>}
                 </NavLink>
               )
             })}

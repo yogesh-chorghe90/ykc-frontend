@@ -365,12 +365,12 @@ const RegionalManagers = () => {
                     <MapPin className="w-6 h-6 text-primary-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-semibold text-gray-900">{rm.name || 'Unnamed'}</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 uppercase">{rm.name || 'Unnamed'}</h2>
                     <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
                       {rm.email && (
                         <span className="flex items-center gap-1">
                           <Mail className="w-4 h-4" />
-                          {rm.email}
+                          <span className="email-lowercase" data-email="true">{rm.email}</span>
                         </span>
                       )}
                       {(rm.mobile || rm.phone) && (
@@ -389,7 +389,12 @@ const RegionalManagers = () => {
                         <ul className="mt-2 space-y-1">
                           {rmFranchises.map((f) => (
                             <li key={f._id} className="text-sm text-gray-600 pl-6">
-                              {f.name} {f.address && typeof f.address === 'object' ? `• ${f.address.city || f.address.line1 || ''}` : f.address ? `• ${f.address}` : ''}
+                              <span className="uppercase">{f.name}</span>{' '}
+                              {f.address && typeof f.address === 'object'
+                                ? `• ${(f.address.city || f.address.line1 || '').toString().toUpperCase()}`
+                                : f.address
+                                  ? `• ${String(f.address).toUpperCase()}`
+                                  : ''}
                             </li>
                           ))}
                         </ul>
@@ -405,7 +410,13 @@ const RegionalManagers = () => {
                           <ul className="mt-2 space-y-1">
                             {rmRelationships.map((r) => (
                               <li key={r._id} className="text-sm text-gray-600 pl-6">
-                                {r.name} {r.email ? `• ${r.email}` : ''}
+                                <span className="uppercase">{r.name}</span>
+                                {r.email ? (
+                                  <>
+                                    {' • '}
+                                    <span className="email-lowercase" data-email="true">{r.email}</span>
+                                  </>
+                                ) : ''}
                               </li>
                             ))}
                           </ul>

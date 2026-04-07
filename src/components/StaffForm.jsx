@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatMobileNumber } from '../utils/identifierFormatters'
+import { uppercasePayload } from '../utils/uppercasePayload'
 
 const StaffForm = ({ staff, onSave, onClose }) => {
   const [formData, setFormData] = useState({
@@ -66,7 +67,7 @@ const StaffForm = ({ staff, onSave, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      const dataToSave = { ...formData }
+      const dataToSave = uppercasePayload({ ...formData })
       if (staff && !dataToSave.password) {
         delete dataToSave.password
       }

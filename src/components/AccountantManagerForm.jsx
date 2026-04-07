@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import { uppercasePayload } from '../utils/uppercasePayload'
 
 const AccountantManagerForm = ({ accountantManager, onSave, onClose, isSaving = false }) => {
     const isEdit = !!accountantManager
@@ -68,7 +69,7 @@ const AccountantManagerForm = ({ accountantManager, onSave, onClose, isSaving = 
     const handleSubmit = (e) => {
         e.preventDefault()
         if (validate()) {
-            const payload = { ...formData, role: 'accounts_manager' }
+            const payload = uppercasePayload({ ...formData, role: 'accounts_manager' })
             if (isEdit && !payload.password) {
                 delete payload.password // Don't update password if empty during edit
             }

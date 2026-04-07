@@ -1,130 +1,56 @@
 import API_BASE_URL from '../config/api';
 import { authService } from './auth.service';
 import { toast } from './toastService';
+import { httpClient } from './httpClient';
+import { logoutAndRedirect } from './authSession';
 
 // Generic API request function
 const apiRequest = async (endpoint, options = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const token = authService.getToken();
-
-  const config = {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-    credentials: 'include', // Include cookies for authentication
-  };
-
-  // Debug log (remove in production)
-  console.log(`API Call: ${options.method || 'GET'} ${url}`);
-  console.log('Token present:', !!token);
-
   try {
-    const response = await fetch(url, config);
+    const token = authService.getToken();
+    const method = options.method || 'GET';
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
-    // Handle non-JSON responses
-    const contentType = response.headers.get('content-type');
-    let data;
+    // axios uses `data` for the request body.
+    const response = await httpClient.request({
+      url: endpoint,
+      method,
+      headers: {
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+      data: options.body,
+    });
 
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      const text = await response.text();
-      data = text ? { message: text } : { message: 'An error occurred' };
-    }
+    return response.data;
+  } catch (error) {
+    // If Axios interceptor handled the auth error, don't double-handle.
+    if (error?._authHandled) throw error;
 
-    if (!response.ok) {
-      const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
-      const isNotificationEndpoint = endpoint.includes('/notifications');
+    const status = error?.response?.status;
+    const responseData = error?.response?.data;
+    const errorMessage =
+      responseData?.message || responseData?.error || `HTTP ${status || ''}: ${error?.response?.statusText || 'Request failed'}`;
 
-      // Silently handle 404 for notification endpoints (API might not be implemented yet)
-      if (response.status === 404 && isNotificationEndpoint) {
-        const apiError = new Error(errorMessage);
-        apiError._toastShown = true;
-        apiError._silent = true; // Flag to suppress logging
-        throw apiError;
-      }
+    const isNotificationEndpoint = endpoint.includes('/notifications');
 
-      // Handle 401 - redirect to login (but not for auth endpoints)
-      if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
-        // Clear auth data
-        authService.removeToken();
-        // Only redirect if not already on login page
-        if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/signup')) {
-          toast.error('Authentication Error', 'Please login again');
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1000);
-        }
-        throw new Error('Authentication required');
-      }
-
-      // Show toast notification for other errors (but not for auth endpoints or notification 404s)
-      // Only show toast here - don't show again in catch block
-      if (response.status !== 403 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register') && !(response.status === 404 && isNotificationEndpoint)) {
-        toast.error('Error', errorMessage);
-      } else if (response.status === 403) {
-        toast.error('Permission Denied', errorMessage || 'You do not have permission to perform this action');
-      }
-
-      // Create error with a flag to prevent duplicate toast
+    // Silently handle 404 for notification endpoints (API might not be implemented yet)
+    if (status === 404 && isNotificationEndpoint) {
       const apiError = new Error(errorMessage);
       apiError._toastShown = true;
+      apiError._silent = true;
       throw apiError;
     }
 
-    return data;
-  } catch (error) {
-    // If toast was already shown in the response handler, don't show again
-    if (error._toastShown) {
-      throw error;
+    // Permission errors
+    if (status === 403) {
+      toast.error('Permission Denied', errorMessage || 'You do not have permission to perform this action');
+    } else if (!(status === 404 && isNotificationEndpoint)) {
+      toast.error('Error', errorMessage);
     }
 
-    // Check if it's a connection error
-    const isConnectionError = error.message && (
-      error.message.includes('Failed to fetch') ||
-      error.message.includes('NetworkError') ||
-      error.name === 'TypeError'
-    );
-
-    // Only log connection errors once to reduce spam
-    if (isConnectionError) {
-      // Check if we've already shown an error for this endpoint recently
-      const errorKey = `connection_error_${endpoint}`;
-      const lastErrorTime = sessionStorage.getItem(errorKey);
-      const now = Date.now();
-
-      // Only show error if we haven't shown it in the last 5 seconds
-      if (!lastErrorTime || (now - parseInt(lastErrorTime)) > 5000) {
-        console.error('API Connection Error:', {
-          endpoint,
-          error: error.message,
-          message: 'Backend server is not running or not accessible. Please ensure the server is started on port 5000.'
-        });
-        sessionStorage.setItem(errorKey, now.toString());
-
-        // Only show toast for connection errors, and not for auth endpoints or notification polling
-        // Don't show toast for notification endpoints as they poll frequently
-        const isNotificationEndpoint = endpoint.includes('/notifications/');
-        if (!endpoint.includes('/auth/login') && !endpoint.includes('/auth/register') && !isNotificationEndpoint) {
-          toast.error('Connection Error', 'Cannot connect to server. Please ensure the backend server is running on port 5000.');
-        }
-      }
-    } else {
-      // Log other errors normally (but don't show toast if already shown)
-      // Suppress logging for silent errors (like 404 on notification endpoints)
-      if (!error._silent) {
-        console.error('API Error:', error);
-      }
-    }
-
-    // Re-throw with more context
-    if (error.message) {
-      throw error;
-    }
-    throw new Error('Network error: Could not connect to server');
+    throw new Error(errorMessage);
   }
 };
 
@@ -133,79 +59,33 @@ export const api = {
   // Auth endpoints (no auth required)
   auth: {
     login: async (credentials) => {
-      // Login doesn't require token, so make direct request
-      const url = `${API_BASE_URL}/auth/login`;
-
       try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(credentials),
+        const response = await httpClient.post('/auth/login', credentials, {
+          headers: { 'Content-Type': 'application/json' },
         });
-
-        const contentType = response.headers.get('content-type');
-        let data;
-
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json();
-        } else {
-          const text = await response.text();
-          data = text ? { message: text } : { message: 'An error occurred' };
-        }
-
-        if (!response.ok) {
-          const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
-          throw new Error(errorMessage);
-        }
-
-        return data;
+        return response.data;
       } catch (error) {
-        // Re-throw with proper message
-        if (error.message) {
-          throw error;
-        }
-        throw new Error('Network error: Could not connect to server');
+        const message =
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          'Network error: Could not connect to server';
+        throw new Error(message);
       }
     },
     register: async (userData) => {
-      // Register doesn't require token - use signup endpoint
-      const url = `${API_BASE_URL}/auth/signup`;
-
       try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(userData),
+        const response = await httpClient.post('/auth/signup', userData, {
+          headers: { 'Content-Type': 'application/json' },
         });
-
-        const contentType = response.headers.get('content-type');
-        let data;
-
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json();
-        } else {
-          const text = await response.text();
-          data = text ? { message: text } : { message: 'An error occurred' };
-        }
-
-        if (!response.ok) {
-          const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
-          throw new Error(errorMessage);
-        }
-
-        return data;
+        return response.data;
       } catch (error) {
-        // Re-throw with proper message
-        if (error.message) {
-          throw error;
-        }
-        throw new Error('Network error: Could not connect to server');
+        const message =
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          'Network error: Could not connect to server';
+        throw new Error(message);
       }
     },
     logout: () => apiRequest('/auth/logout', { method: 'POST' }),
@@ -368,19 +248,12 @@ export const api = {
     create: (data) => {
       // If data is FormData, send it directly (for file uploads)
       if (data instanceof FormData) {
-        return fetch(`${API_BASE_URL}/payouts`, {
-          method: 'POST',
+        const token = authService.getToken();
+        return httpClient.post('/payouts', data, {
           headers: {
-            'Authorization': `Bearer ${authService.getToken()}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: data,
-        }).then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || data.message || 'Request failed');
-          }
-          return data;
-        });
+        }).then((res) => res.data);
       }
       // Otherwise, send as JSON
       return apiRequest('/payouts', {
@@ -391,19 +264,12 @@ export const api = {
     update: (id, data) => {
       // If data is FormData, send it directly (for file uploads)
       if (data instanceof FormData) {
-        return fetch(`${API_BASE_URL}/payouts/${id}`, {
-          method: 'PUT',
+        const token = authService.getToken();
+        return httpClient.put(`/payouts/${id}`, data, {
           headers: {
-            'Authorization': `Bearer ${authService.getToken()}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          body: data,
-        }).then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) {
-            throw new Error(data.error || data.message || 'Request failed');
-          }
-          return data;
-        });
+        }).then((res) => res.data);
       }
       return apiRequest(`/payouts/${id}`, {
       method: 'PUT',
@@ -516,33 +382,13 @@ export const api = {
      * @param {FormData} formData
      */
     upload: async (formData) => {
-      const url = `${API_BASE_URL}/documents`;
       const token = authService.getToken();
-
-      const config = {
-        method: 'POST',
+      const response = await httpClient.post('/documents', formData, {
         headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: formData,
-        credentials: 'include',
-      };
-
-      const response = await fetch(url, config);
-      const contentType = response.headers.get('content-type') || '';
-      let data;
-      if (contentType.includes('application/json')) data = await response.json();
-      else {
-        const text = await response.text();
-        data = text ? { message: text } : { message: 'An error occurred' };
-      }
-
-      if (!response.ok) {
-        const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
-        throw new Error(errorMessage);
-      }
-
-      return data;
+      });
+      return response.data;
     },
     /**
      * List documents for an entity
@@ -580,7 +426,24 @@ export const api = {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
 
-        if (!res.ok) throw new Error(`Server error: ${res.status}`)
+        if (!res.ok) {
+          if (res.status === 401) {
+            let data = null
+            try {
+              data = await res.json()
+            } catch (_) {
+              // ignore parse issues
+            }
+
+            logoutAndRedirect({
+              reasonMessage: data?.message,
+              showAlert: data?.message === 'Session expired due to inactivity',
+            })
+            return
+          }
+
+          throw new Error(`Server error: ${res.status}`)
+        }
 
         const blob = await res.blob()
         const blobUrl = URL.createObjectURL(blob)

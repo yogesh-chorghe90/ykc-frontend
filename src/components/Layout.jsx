@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import { useInactivityLogout } from '../utils/useInactivityLogout'
 
 const Layout = () => {
   const [sidebarMinimized, setSidebarMinimized] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Auto-logout on client inactivity (10 minutes)
+  useInactivityLogout()
 
   useEffect(() => {
     const checkMobile = () => {

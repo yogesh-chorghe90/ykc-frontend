@@ -150,6 +150,7 @@ export default function DashboardFilters({ filters = {}, onApply, onReset, role 
     if (!out.leadStatus) delete out.leadStatus
     if (!out.invoiceStatus) delete out.invoiceStatus
     if (!out.payoutStatus) delete out.payoutStatus
+    if (!out.advancePayment) delete out.advancePayment
     if (!out.limit) delete out.limit
     onApply(out)
   }
@@ -330,6 +331,18 @@ export default function DashboardFilters({ filters = {}, onApply, onReset, role 
                     {o.label}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Advance Payment</label>
+              <select
+                value={local.advancePayment || ''}
+                onChange={(e) => handleChange('advancePayment', e.target.value)}
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm bg-white"
+              >
+                <option value="">All</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
               </select>
             </div>
           </div>

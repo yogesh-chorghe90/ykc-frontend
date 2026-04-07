@@ -24,6 +24,7 @@ const Payouts = () => {
   const [leads, setLeads] = useState([])
   const [franchises, setFranchises] = useState([])
   const [agents, setAgents] = useState([])
+  const [relationshipManagers, setRelationshipManagers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -41,13 +42,104 @@ const Payouts = () => {
 
   const getAgentId = (agent) => String(agent?._id || agent?.id || agent || '')
   const getFranchiseId = (franchise) => String(franchise?._id || franchise?.id || franchise || '')
+  const getLeadId = (payout) => String(payout?.lead?._id || payout?.lead?.id || payout?.leadId || payout?.lead || '')
+
+  const getLeadForPayout = (payout) => {
+    const leadObj = payout?.lead && typeof payout.lead === 'object' ? payout.lead : null
+    if (leadObj) return leadObj
+    const id = getLeadId(payout)
+    if (!id) return null
+    return leads.find((l) => String(l._id || l.id) === id) || null
+  }
+
+  const getLeadNameForPayout = (payout) => {
+    const lead = getLeadForPayout(payout)
+    if (!lead) return 'N/A'
+    const fv =
+      lead?.formValues && typeof lead.formValues === 'object' && !Array.isArray(lead.formValues)
+        ? lead.formValues
+        : {}
+    return (
+      lead.customerName ||
+      fv.customerName ||
+      fv.leadName ||
+      fv.name ||
+      fv.applicant_name ||
+      lead.leadName ||
+      lead.loanAccountNo ||
+      lead.loanAccountNumber ||
+      'N/A'
+    )
+  }
+
+  const getMappedAgentIdFromLead = (lead) => {
+    if (!lead) return ''
+    return String(lead?.agent?._id || lead?.agent?.id || lead?.agentId || lead?.agent || '')
+  }
+
+  const getMappedAssociatedFromLead = (lead) => {
+    if (!lead) return { model: '', id: '' }
+
+    if (lead.associatedModel) {
+      const id = String(lead?.associated?._id || lead?.associated?.id || lead?.associated || '')
+      return { model: lead.associatedModel, id }
+    }
+
+    const agentObj = lead.agent && typeof lead.agent === 'object' ? lead.agent : null
+    if (agentObj?.managedByModel && agentObj?.managedBy) {
+      const id = String(agentObj.managedBy?._id || agentObj.managedBy?.id || agentObj.managedBy || '')
+      return { model: agentObj.managedByModel, id }
+    }
+
+    return { model: '', id: '' }
+  }
 
   const getAgentDisplay = (payout) => {
-    const agentObj = payout?.agent && typeof payout.agent === 'object' ? payout.agent : null
-    if (agentObj?.name) return agentObj.name
+    const lead = getLeadForPayout(payout)
+    const agentObjFromLead = lead?.agent && typeof lead.agent === 'object' ? lead.agent : null
+    if (agentObjFromLead?.name) return agentObjFromLead.name
+
+    // If a lead exists but doesn't have a mapped agent, show N/A (don't fall back to payout.agent)
+    if (lead) {
+      const leadAgentId = getMappedAgentIdFromLead(lead)
+      if (!leadAgentId) return 'N/A'
+      const foundLeadAgent = agents.find((a) => String(a._id || a.id) === String(leadAgentId))
+      return foundLeadAgent?.name || foundLeadAgent?.email || 'N/A'
+    }
+
+    const payoutAgentObj = payout?.agent && typeof payout.agent === 'object' ? payout.agent : null
+    if (payoutAgentObj?.name) return payoutAgentObj.name
+
     const id = getAgentId(payout?.agent)
     const found = agents.find((a) => String(a._id || a.id) === id)
     return found?.name || found?.email || (id ? id.slice(0, 8) + '...' : 'N/A')
+  }
+
+  const getAssociatedDisplay = (payout) => {
+    const lead = getLeadForPayout(payout)
+    const assoc = getMappedAssociatedFromLead(lead)
+
+    // If a lead exists but has no association mapping, show N/A (don't fall back)
+    if (lead && (!assoc?.model || !assoc?.id)) {
+      return 'N/A'
+    }
+
+    if (assoc.model === 'Franchise') {
+      const frObj = lead?.associated && typeof lead.associated === 'object' ? lead.associated : null
+      if (frObj?.name) return frObj.name
+      const found = franchises.find((f) => String(f._id || f.id) === String(assoc.id))
+      return found?.name || (assoc.id ? assoc.id.slice(0, 8) + '...' : 'N/A')
+    }
+
+    if (assoc.model === 'RelationshipManager' || assoc.model === 'relationship_manager') {
+      const rmObj = lead?.associated && typeof lead.associated === 'object' ? lead.associated : null
+      if (rmObj?.name) return rmObj.name
+      const found = relationshipManagers.find((r) => String(r._id || r.id) === String(assoc.id))
+      return found?.name || (assoc.id ? assoc.id.slice(0, 8) + '...' : 'N/A')
+    }
+
+    // fallback: payout's franchise field (legacy)
+    return getFranchiseDisplay(payout)
   }
 
   const getFranchiseDisplay = (payout) => {
@@ -72,6 +164,7 @@ const Payouts = () => {
     fetchLeads()
     fetchFranchises()
     fetchAgents()
+    fetchRelationshipManagers()
   }, [])
 
   const fetchFranchises = async () => {
@@ -88,6 +181,14 @@ const Payouts = () => {
       const data = res?.data || res || []
       setAgents(Array.isArray(data) ? data : [])
     } catch (_) { setAgents([]) }
+  }
+
+  const fetchRelationshipManagers = async () => {
+    try {
+      const res = await api.relationshipManagers.getAll({ limit: 500 })
+      const data = res?.data || res || []
+      setRelationshipManagers(Array.isArray(data) ? data : [])
+    } catch (_) { setRelationshipManagers([]) }
   }
 
   const fetchPayouts = async () => {
@@ -146,7 +247,12 @@ const Payouts = () => {
       setSelectedPayout(null)
     } catch (error) {
       console.error('Error saving payout:', error)
-      toast.error('Error', error.message || 'Failed to save payout')
+      const serverMsg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.response?.data?.msg ||
+        null
+      toast.error('Error', serverMsg || error.message || 'Failed to save payout')
     }
   }
 
@@ -216,8 +322,9 @@ const Payouts = () => {
       filtered = filtered.filter(
         (p) =>
           p.payoutNumber?.toLowerCase().includes(term) ||
+          getLeadNameForPayout(p).toLowerCase().includes(term) ||
           getAgentDisplay(p).toLowerCase().includes(term) ||
-          getFranchiseDisplay(p).toLowerCase().includes(term)
+          getAssociatedDisplay(p).toLowerCase().includes(term)
       )
     }
 
@@ -226,15 +333,22 @@ const Payouts = () => {
     }
 
     if (franchiseFilter) {
-      filtered = filtered.filter(
-        (p) => (p.franchise?._id || p.franchise?.id || p.franchise)?.toString() === franchiseFilter
-      )
+      filtered = filtered.filter((p) => {
+        const lead = getLeadForPayout(p)
+        const assoc = getMappedAssociatedFromLead(lead)
+        const assocFranchiseId =
+          assoc.model === 'Franchise' ? assoc.id : (p.franchise?._id || p.franchise?.id || p.franchise)
+        return String(assocFranchiseId || '') === String(franchiseFilter || '')
+      })
     }
 
     if (agentFilter) {
-      filtered = filtered.filter(
-        (p) => (p.agent?._id || p.agent?.id || p.agent)?.toString() === agentFilter
-      )
+      filtered = filtered.filter((p) => {
+        const lead = getLeadForPayout(p)
+        const leadAgentId = getMappedAgentIdFromLead(lead)
+        const payoutAgentId = p.agent?._id || p.agent?.id || p.agent
+        return String(leadAgentId || payoutAgentId || '') === String(agentFilter || '')
+      })
     }
 
     if (dateFromFilter) {
@@ -259,12 +373,15 @@ const Payouts = () => {
         let aVal = a[sortConfig.key]
         let bVal = b[sortConfig.key]
 
-        if (sortConfig.key === 'agent') {
+        if (sortConfig.key === 'lead') {
+          aVal = getLeadNameForPayout(a) || ''
+          bVal = getLeadNameForPayout(b) || ''
+        } else if (sortConfig.key === 'agent') {
           aVal = getAgentDisplay(a) || ''
           bVal = getAgentDisplay(b) || ''
-        } else if (sortConfig.key === 'franchise') {
-          aVal = getFranchiseDisplay(a) || ''
-          bVal = getFranchiseDisplay(b) || ''
+        } else if (sortConfig.key === 'associated') {
+          aVal = getAssociatedDisplay(a) || ''
+          bVal = getAssociatedDisplay(b) || ''
         } else if (sortConfig.key === 'totalAmount' || sortConfig.key === 'netPayable') {
           aVal = a[sortConfig.key] || 0
           bVal = b[sortConfig.key] || 0
@@ -282,7 +399,7 @@ const Payouts = () => {
     }
 
     return filtered
-  }, [payouts, searchTerm, statusFilter, franchiseFilter, agentFilter, dateFromFilter, dateToFilter, sortConfig, agents, franchises])
+  }, [payouts, leads, searchTerm, statusFilter, franchiseFilter, agentFilter, dateFromFilter, dateToFilter, sortConfig, agents, franchises, relationshipManagers])
 
   // Calculate statistics
   const totalPayouts = payouts.length
@@ -332,7 +449,19 @@ const Payouts = () => {
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {canExportData(userRole) && (
             <button
-              onClick={() => exportToExcel(filteredPayouts, 'payouts')}
+              onClick={() => {
+                const rows = filteredPayouts.map((p) => ({
+                  payoutNumber: p.payoutNumber || 'N/A',
+                  lead: getLeadNameForPayout(p),
+                  partner: getAgentDisplay(p),
+                  associated: getAssociatedDisplay(p),
+                  totalAmount: p.totalAmount || 0,
+                  netPayable: p.netPayable || 0,
+                  status: p.status || 'N/A',
+                  createdAt: p.createdAt || '',
+                }))
+                exportToExcel(rows, 'payouts')
+              }}
               className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <FileDown className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -444,7 +573,7 @@ const Payouts = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Payout number, partner..."
+                    placeholder="Payout number, lead, partner..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
@@ -536,6 +665,15 @@ const Payouts = () => {
                 </th>
                 <th
                   className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap"
+                  onClick={() => handleSort('lead')}
+                >
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    Lead
+                    {getSortIcon('lead')}
+                  </div>
+                </th>
+                <th
+                  className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap"
                   onClick={() => handleSort('agent')}
                 >
                   <div className="flex items-center gap-1 sm:gap-2">
@@ -545,11 +683,11 @@ const Payouts = () => {
                 </th>
                 <th
                   className="px-3 sm:px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap"
-                  onClick={() => handleSort('franchise')}
+                  onClick={() => handleSort('associated')}
                 >
                   <div className="flex items-center gap-1 sm:gap-2">
-                    Franchise
-                    {getSortIcon('franchise')}
+                    Associated
+                    {getSortIcon('associated')}
                   </div>
                 </th>
                 <th
@@ -586,7 +724,7 @@ const Payouts = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredPayouts.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-3 sm:px-6 py-8 text-center text-gray-500 text-sm">
+                  <td colSpan="9" className="px-3 sm:px-6 py-8 text-center text-gray-500 text-sm">
                     No payouts found
                   </td>
                 </tr>
@@ -597,10 +735,13 @@ const Payouts = () => {
                       <div className="text-xs sm:text-sm font-medium text-gray-900">{payout.payoutNumber}</div>
                     </td>
                     <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm text-gray-900">{getLeadNameForPayout(payout)}</div>
+                    </td>
+                    <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
                       <div className="text-xs sm:text-sm text-gray-900">{getAgentDisplay(payout)}</div>
                     </td>
                     <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <div className="text-xs sm:text-sm text-gray-900">{getFranchiseDisplay(payout)}</div>
+                      <div className="text-xs sm:text-sm text-gray-900">{getAssociatedDisplay(payout)}</div>
                     </td>
                     <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
                       <div className="text-xs sm:text-sm font-medium text-gray-900">

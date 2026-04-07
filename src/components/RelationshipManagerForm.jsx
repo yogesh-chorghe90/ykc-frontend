@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
 import { formatMobileNumber } from '../utils/identifierFormatters'
+import { uppercasePayload } from '../utils/uppercasePayload'
 
 const RelationshipManagerForm = ({ relationshipManager, onSave, onClose, isSaving = false }) => {
   const isCreate = !relationshipManager
@@ -64,11 +65,11 @@ const RelationshipManagerForm = ({ relationshipManager, onSave, onClose, isSavin
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      const payload = {
+      const payload = uppercasePayload({
         ...formData,
         // Backend requires ownerName; default to the same as RM name if not explicitly set
         ownerName: (formData.ownerName || formData.name || '').trim(),
-      }
+      })
       if (!isCreate) {
         delete payload.password
       }

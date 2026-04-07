@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import { uppercasePayload } from '../utils/uppercasePayload'
 
 const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
   const isEdit = !!regionalManager
@@ -43,7 +44,7 @@ const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      const dataToSave = { ...formData, role: 'regional_manager' }
+      const dataToSave = uppercasePayload({ ...formData, role: 'regional_manager' })
       // If editing and password is empty, don't include it in the update
       if (isEdit && !formData.password) {
         delete dataToSave.password

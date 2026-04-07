@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import API_BASE_URL from '../config/api'
+import { httpClient } from '../services/httpClient'
 import Modal from '../components/Modal'
 import { toast } from '../services/toastService'
 import { authService } from '../services/auth.service'
@@ -101,21 +101,17 @@ const RaiseTicketForm = ({ onSuccess, onCancel }) => {
         formData.append('attachment', attachment)
       }
 
-      const response = await fetch(`${API_BASE_URL}/tickets`, {
-        method: 'POST',
+      const response = await httpClient.post('/tickets', formData, {
         headers: {
           Authorization: `Bearer ${authService.getToken()}`,
         },
-        credentials: 'include',
-        body: formData,
       })
-
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || 'Failed to create service request')
+      const data = response.data
 
       toast.success('Success', 'Service request raised successfully')
       onSuccess?.()
     } catch (err) {
+      if (err?._authHandled) return
       toast.error('Error', err.message || 'Failed to raise service request')
     } finally {
       setSubmitting(false)

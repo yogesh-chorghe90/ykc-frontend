@@ -3,8 +3,17 @@ import { Upload, X, File, ExternalLink, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { toast } from '../services/toastService';
 import { authService } from '../services/auth.service';
+import { logoutAndRedirect } from '../services/authSession';
+import { uppercasePayload } from '../utils/uppercasePayload'
 
 const NEW_LEAD_OPTION = 'new_lead';
+
+/** Valid MongoDB ObjectId string for pre-lead document uploads (Document.entityId requires ObjectId). */
+function generateTempObjectId() {
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 // Simple mapping of loan types for legacy form
 const LOAN_TYPES = [
@@ -25,7 +34,19 @@ const openDocument = async (docId, mimeType) => {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: 'include',
     })
-    if (!res.ok) throw new Error('Failed to fetch document')
+    if (!res.ok) {
+      if (res.status === 401) {
+        let data = null
+        try {
+          data = await res.json()
+        } catch (_) {
+          // ignore
+        }
+        logoutAndRedirect({ reasonMessage: data?.message, showAlert: data?.message === 'Session expired due to inactivity' })
+        return
+      }
+      throw new Error('Failed to fetch document')
+    }
     const blob = await res.blob()
     const blobUrl = URL.createObjectURL(blob)
     window.open(blobUrl, '_blank', 'noopener,noreferrer')
@@ -164,8 +185,8 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     return false;
   }, [isAgent, isRelationshipManager, selectedAgentId, selectedAgent, lead?.associatedModel]);
 
-  // temp id for pre-uploading docs before lead is created
-  const tempEntityId = useMemo(() => `temp-${Date.now()}-${Math.round(Math.random() * 1e6)}`, []);
+  // Placeholder ObjectId for pre-uploading docs before lead exists (must match Document schema)
+  const tempEntityId = useMemo(() => generateTempObjectId(), []);
 
   useEffect(() => {
     const load = async () => {
@@ -218,20 +239,20 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     setUploading(true);
 
     try {
-      const uploadPromises = filesArray.map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('entityType', 'lead');
-        formData.append('entityId', leadId);
-        formData.append('documentType', 'attachment');
-        formData.append('description', `Lead attachment: ${file.name}`);
+      const formData = new FormData();
+      formData.append('entityType', 'lead');
+      formData.append('entityId', leadId);
+      formData.append('documentType', 'attachment');
+      formData.append(
+        'description',
+        `Lead attachments: ${filesArray.map((f) => f.name).join(', ')}`
+      );
+      filesArray.forEach((file) => formData.append('file', file));
 
-        const response = await api.documents.upload(formData);
-        return response.data || response;
-      });
-
-      const uploadedDocs = await Promise.all(uploadPromises);
-      setAttachments(prev => [...prev, ...uploadedDocs]);
+      const response = await api.documents.upload(formData);
+      const payload = response?.data;
+      const uploadedDocs = Array.isArray(payload) ? payload : payload ? [payload] : [];
+      setAttachments((prev) => [...prev, ...uploadedDocs]);
       toast.success('Success', `Successfully uploaded ${uploadedDocs.length} file(s)`);
     } catch (error) {
       console.error('Error uploading files:', error);
@@ -613,31 +634,47 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     if (k === 'bankId') setSelectedBank(normalizedValue);
   };
 
-  const handleFileSelect = async (file, docTypeKey, description = '') => {
-    if (!file || !docTypeKey) return;
+  const handleMultipleFileSelect = async (fileList, docTypeKey, description = '') => {
+    if (!fileList?.length || !docTypeKey) return;
+    const files = Array.from(fileList);
     try {
       setUploading(true);
+      // One multipart request: multer.array('file') + shared body fields (avoids 400s from sequential posts)
       const fd = new FormData();
-      fd.append('file', file);
       fd.append('entityType', 'lead');
-      // upload against temporary id so we can provide URL in create payload
       fd.append('entityId', tempEntityId);
       fd.append('documentType', docTypeKey);
       fd.append('description', description || '');
+      files.forEach((file) => fd.append('file', file));
+
       const resp = await api.documents.upload(fd);
-      const doc = resp?.data;
-      if (doc) {
-        setUploadedDocs((p) => [...(p || []), { documentType: docTypeKey, url: doc.url || doc.filePath || '', meta: doc }]);
-        toast.success('Uploaded', 'Document uploaded');
+      const payload = resp?.data;
+      const docs = Array.isArray(payload) ? payload : payload ? [payload] : [];
+      if (docs.length > 0) {
+        setUploadedDocs((p) => [
+          ...p,
+          ...docs.map((doc) => ({
+            documentType: docTypeKey,
+            url: doc.url || doc.filePath || '',
+            meta: doc,
+          })),
+        ]);
+        toast.success('Uploaded', docs.length === 1 ? 'Document uploaded' : `${docs.length} files uploaded`);
       } else {
-        toast.error('Upload failed', 'No response data');
+        toast.error('Upload failed', 'No files were saved');
       }
     } catch (err) {
       console.error('Upload error', err);
-      toast.error('Upload failed', err.message || '');
+      const msg = err?.response?.data?.message || err.message || 'Upload failed';
+      toast.error('Upload failed', msg);
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleFileSelect = async (file, docTypeKey, description = '') => {
+    if (!file || !docTypeKey) return;
+    await handleMultipleFileSelect([file], docTypeKey, description);
   };
 
   const handleRemoveUploaded = (index) => {
@@ -764,10 +801,14 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
         : (leadFormDef.fields || []);
       const missing = [];
       fieldsToValidate.forEach((f) => {
-        if (f.required) {
-          const val = formValues?.[f.key] ?? standard[f.key];
-          if (val === undefined || val === null || val === '') missing.push(f.label || f.key);
+        if (!f.required) return;
+        if ((f.type || '').toLowerCase() === 'file') {
+          const hasFile = (uploadedDocs || []).some((d) => d.documentType === f.key && d.url);
+          if (!hasFile) missing.push(f.label || f.key);
+          return;
         }
+        const val = formValues?.[f.key] ?? standard[f.key];
+        if (val === undefined || val === null || val === '') missing.push(f.label || f.key);
       });
       const missingDocs = [];
       (leadFormDef.documentTypes || []).forEach((dt) => {
@@ -936,7 +977,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     }
 
     // Pass to parent
-    if (onSave) onSave(payload);
+    if (onSave) onSave(uppercasePayload(payload));
   };
 
   const isNewLead = selectedBank === NEW_LEAD_OPTION || leadFormDef?.leadType === 'new_lead';
@@ -1083,6 +1124,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                   .map((f) => {
                   const val = formValues?.[f.key] ?? standard[f.key] ?? '';
                   const inputClass = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none";
+                  const isFileField = (f.type || '').toLowerCase() === 'file';
                   return (
                     <div key={f.key}>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">{f.label}{f.required && ' *'}</label>
@@ -1093,6 +1135,51 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                         </select>
                       ) : f.type === 'textarea' ? (
                         <textarea value={val} onChange={(e) => handleFieldChange(f.key, e.target.value)} className={inputClass} />
+                      ) : isFileField ? (
+                        <div className="space-y-2">
+                          <input
+                            type="file"
+                            multiple
+                            disabled={uploading}
+                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                            onChange={(e) => {
+                              const fl = e.target.files;
+                              if (fl?.length) handleMultipleFileSelect(fl, f.key, f.label || '');
+                              e.target.value = '';
+                            }}
+                          />
+                          <ul className="space-y-1 text-sm">
+                            {(uploadedDocs || []).map((d, idx) =>
+                              d.documentType === f.key ? (
+                                <li key={`${f.key}-${idx}`} className="flex items-center justify-between gap-2 rounded border border-gray-100 bg-gray-50 px-2 py-1">
+                                  <span className="truncate text-gray-800">
+                                    {d.meta?.originalFileName || d.meta?.fileName || 'Uploaded file'}
+                                  </span>
+                                  <div className="flex shrink-0 items-center gap-2">
+                                    {d?.meta?._id || d?.meta?.id ? (
+                                      <button
+                                        type="button"
+                                        className="text-xs text-primary-600 hover:underline"
+                                        onClick={() => openDocument(d.meta._id || d.meta.id, d.meta?.mimeType)}
+                                      >
+                                        View
+                                      </button>
+                                    ) : d?.url ? (
+                                      <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 hover:underline">View</a>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      className="text-xs text-red-600 hover:underline"
+                                      onClick={() => handleRemoveUploaded(idx)}
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </li>
+                              ) : null
+                            )}
+                          </ul>
+                        </div>
                       ) : (
                         <input type={f.type || 'text'} value={val} onChange={(e) => handleFieldChange(f.key, e.target.value)} className={inputClass} />
                       )}
@@ -1104,35 +1191,56 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                 <div className="border-t pt-6 space-y-4">
                   <h5 className="font-bold text-gray-800">Required Documents</h5>
                   {(leadFormDef.documentTypes || []).map(dt => (
-                    <div key={dt.key} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                      <span className="text-sm font-medium">{dt.name}{dt.required && ' *'}</span>
-                      <div className="flex items-center gap-2">
-                        <input type="file" className="hidden" id={`file-${dt.key}`} onChange={(e) => handleFileSelect(e.target.files?.[0], dt.key, dt.name)} />
-                        <label htmlFor={`file-${dt.key}`} className="px-3 py-1 bg-white border rounded text-xs cursor-pointer hover:bg-gray-100">Upload</label>
-                        {uploadedDocs.filter(d => d.documentType === dt.key).map((d, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <div className="text-xs text-green-600 font-bold">Uploaded</div>
-                            {d?.meta?._id || d?.meta?.id ? (
-                              <button
-                                type="button"
-                                className="text-xs text-blue-600 hover:underline"
-                                onClick={() => openDocument(d.meta._id || d.meta.id, d.meta?.mimeType)}
-                              >
-                                View
-                              </button>
-                            ) : d?.url ? (
-                              <a
-                                href={d.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline"
-                              >
-                                View
-                              </a>
-                            ) : null}
-                          </div>
-                        ))}
+                    <div key={dt.key} className="flex flex-col gap-2 p-3 border rounded-lg bg-gray-50">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm font-medium">{dt.name}{dt.required && ' *'}</span>
+                        <label className="px-3 py-1 bg-white border rounded text-xs cursor-pointer hover:bg-gray-100">
+                          {uploading ? 'Uploading…' : 'Add files'}
+                          <input
+                            type="file"
+                            multiple
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={(e) => {
+                              const fl = e.target.files;
+                              if (fl?.length) handleMultipleFileSelect(fl, dt.key, dt.name);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
                       </div>
+                      <ul className="space-y-1">
+                        {(uploadedDocs || []).map((d, idx) =>
+                          d.documentType === dt.key ? (
+                            <li key={`${dt.key}-${idx}`} className="flex items-center justify-between gap-2 text-sm">
+                              <span className="truncate text-gray-800">
+                                {d.meta?.originalFileName || d.meta?.fileName || 'File'}
+                              </span>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <span className="text-xs text-green-600 font-medium">Uploaded</span>
+                                {d?.meta?._id || d?.meta?.id ? (
+                                  <button
+                                    type="button"
+                                    className="text-xs text-blue-600 hover:underline"
+                                    onClick={() => openDocument(d.meta._id || d.meta.id, d.meta?.mimeType)}
+                                  >
+                                    View
+                                  </button>
+                                ) : d?.url ? (
+                                  <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="text-xs text-red-600 hover:underline"
+                                  onClick={() => handleRemoveUploaded(idx)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </li>
+                          ) : null
+                        )}
+                      </ul>
                     </div>
                   ))}
                 </div>
@@ -1387,12 +1495,12 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">Advance Payment</label>
                       <select
-                        value={standard.advancePayment ? 'true' : 'false'}
-                        onChange={(e) => handleStandardChange('advancePayment', e.target.value === 'true')}
+                        value={standard.advancePayment ? 'yes' : 'no'}
+                        onChange={(e) => handleStandardChange('advancePayment', e.target.value === 'yes')}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none bg-white"
                       >
-                        <option value="false">False</option>
-                        <option value="true">True</option>
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
                       </select>
                     </div>
                   </>
@@ -1682,7 +1790,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                 <div className="border-t pt-6 space-y-4">
                   <h5 className="font-bold text-gray-800">Commission Details</h5>
                   <p className="text-xs text-gray-600">
-                    These values appear under <span className="font-medium">Associated Comm</span> (franchise / RM share). Use <span className="font-medium">Partner (Agent) Commission</span> below for the selling partner&apos;s column.
+                    These values appear under <span className="font-medium">Associated Comm</span> (franchise / RM share). Use <span className="font-medium">Partner Commission</span> below for the selling partner&apos;s column.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
