@@ -11,7 +11,7 @@ import { toast } from '../services/toastService'
 import { exportToExcel } from '../utils/exportExcel'
 import { canExportData } from '../utils/roleUtils'
 import AccountantLeads from './AccountantLeads'
-import { formatInCrores } from '../utils/formatUtils'
+import { formatInCrores, formatLeadStatusLabel } from '../utils/formatUtils'
 import { formatMobileNumber } from '../utils/identifierFormatters'
 import { humanizeDocumentType, mergeLeadDocumentsFromApiAndEmbedded } from '../utils/leadDocuments'
 
@@ -59,6 +59,12 @@ const Leads = () => {
   const [expandedHistoryItems, setExpandedHistoryItems] = useState(new Set())
   const [selectedLead, setSelectedLead] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, lead: null })
+  const [confirmStatusChange, setConfirmStatusChange] = useState({
+    isOpen: false,
+    leadId: null,
+    currentStatus: '',
+    newStatus: '',
+  })
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [expandedFields, setExpandedFields] = useState({})
   const [showColumnSettings, setShowColumnSettings] = useState(false)
@@ -854,10 +860,21 @@ const Leads = () => {
     }
   }
 
-  const handleStatusUpdate = async (leadId, newStatus) => {
+  const requestStatusChange = (leadId, newStatus, currentStatusRaw) => {
+    const current = currentStatusRaw || 'logged'
+    if (!leadId || newStatus === current) return
+    setConfirmStatusChange({
+      isOpen: true,
+      leadId,
+      currentStatus: current,
+      newStatus,
+    })
+  }
+
+  const handleStatusChangeConfirm = async () => {
+    const { leadId, newStatus } = confirmStatusChange
     if (!leadId) {
-      console.error('Customer ID is missing')
-      toast.error('Error', 'Customer ID is missing')
+      setConfirmStatusChange({ isOpen: false, leadId: null, currentStatus: '', newStatus: '' })
       return
     }
     try {
@@ -867,6 +884,8 @@ const Leads = () => {
     } catch (error) {
       console.error('Error updating lead status:', error)
       toast.error('Error', error.message || 'Failed to update customer status')
+    } finally {
+      setConfirmStatusChange({ isOpen: false, leadId: null, currentStatus: '', newStatus: '' })
     }
   }
 
@@ -2386,7 +2405,7 @@ const Leads = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleStatusUpdate(lead.id || lead._id, 'disbursed')
+                                  requestStatusChange(lead.id || lead._id, 'disbursed', lead.status)
                                 }}
                                 className="text-xs bg-primary-900 text-white px-3 py-1 rounded hover:bg-primary-800 transition-colors"
                                 title="Mark as Disbursed"
@@ -2412,7 +2431,9 @@ const Leads = () => {
                                 </button>
                                 <select
                                   value={lead.status || 'logged'}
-                                  onChange={(e) => handleStatusUpdate(lead.id || lead._id, e.target.value)}
+                                  onChange={(e) =>
+                                    requestStatusChange(lead.id || lead._id, e.target.value, lead.status)
+                                  }
                                   className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500"
                                   onClick={(e) => e.stopPropagation()}
                                 >
@@ -2927,6 +2948,19 @@ const Leads = () => {
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
+      />
+
+      <ConfirmModal
+        isOpen={confirmStatusChange.isOpen}
+        onClose={() =>
+          setConfirmStatusChange({ isOpen: false, leadId: null, currentStatus: '', newStatus: '' })
+        }
+        onConfirm={handleStatusChangeConfirm}
+        title="Change customer status?"
+        message={`Are you sure you want to change the status from ${formatLeadStatusLabel(confirmStatusChange.currentStatus)} to ${formatLeadStatusLabel(confirmStatusChange.newStatus)}?`}
+        confirmText="Change status"
+        cancelText="Cancel"
+        type="warning"
       />
 
       {/* Disbursement Email Modal */}

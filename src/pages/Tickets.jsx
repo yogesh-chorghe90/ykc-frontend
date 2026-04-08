@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { httpClient } from '../services/httpClient'
 import Modal from '../components/Modal'
+import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
 import { authService } from '../services/auth.service'
 
@@ -459,6 +460,7 @@ const TicketDetail = ({ ticket, onUpdate, onClose }) => {
   const [resolutionNote, setResolutionNote] = useState('')
   const [updating, setUpdating] = useState(false)
   const [resolving, setResolving] = useState(false)
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false)
   const userRole = authService.getUser()?.role || ''
   const isAgent = userRole === 'agent'
   const canResolve = ['relationship_manager', 'franchise', 'regional_manager'].includes(userRole)
@@ -484,7 +486,7 @@ const TicketDetail = ({ ticket, onUpdate, onClose }) => {
 
   const ticketId = ticket._id || ticket.id
 
-  const handleUpdate = async () => {
+  const runTicketUpdate = async () => {
     if (!ticketId) {
       toast.error('Error', 'Invalid service request ID')
       return
@@ -505,6 +507,24 @@ const TicketDetail = ({ ticket, onUpdate, onClose }) => {
     }
   }
 
+  const handleUpdate = async () => {
+    if (!ticketId) {
+      toast.error('Error', 'Invalid service request ID')
+      return
+    }
+    const previousStatus = ticket.status || 'Open'
+    if (status !== previousStatus) {
+      setStatusConfirmOpen(true)
+      return
+    }
+    await runTicketUpdate()
+  }
+
+  const handleTicketStatusConfirm = async () => {
+    setStatusConfirmOpen(false)
+    await runTicketUpdate()
+  }
+
   const handleResolve = async () => {
     if (!ticketId) {
       toast.error('Error', 'Invalid service request ID')
@@ -523,7 +543,10 @@ const TicketDetail = ({ ticket, onUpdate, onClose }) => {
     }
   }
 
+  const previousTicketStatus = ticket.status || 'Open'
+
   return (
+    <>
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -681,6 +704,18 @@ const TicketDetail = ({ ticket, onUpdate, onClose }) => {
         </button>
       </div>
     </div>
+
+    <ConfirmModal
+      isOpen={statusConfirmOpen}
+      onClose={() => setStatusConfirmOpen(false)}
+      onConfirm={handleTicketStatusConfirm}
+      title="Change service request status?"
+      message={`Are you sure you want to change the status from ${previousTicketStatus} to ${status}?`}
+      confirmText="Change status"
+      cancelText="Cancel"
+      type="warning"
+    />
+    </>
   )
 }
 

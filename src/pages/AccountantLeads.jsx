@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { toast } from '../services/toastService';
-import { formatCurrency } from '../utils/formatUtils';
+import { formatCurrency, formatLeadStatusLabel } from '../utils/formatUtils';
 import LeadExpandedDetails from '../components/LeadExpandedDetails';
 import DisbursementForm from '../components/DisbursementForm';
 import EditDisbursementForm from '../components/EditDisbursementForm';
@@ -167,6 +167,12 @@ const AccountantLeads = () => {
     const [isEditDisbursementModalOpen, setIsEditDisbursementModalOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [confirmDeleteLead, setConfirmDeleteLead] = useState({ isOpen: false, lead: null });
+    const [confirmStatusChange, setConfirmStatusChange] = useState({
+        isOpen: false,
+        leadId: null,
+        currentStatus: '',
+        newStatus: '',
+    });
     const [isDisbursementEmailModalOpen, setIsDisbursementEmailModalOpen] = useState(false);
     const [selectedLeadForEmail, setSelectedLeadForEmail] = useState(null);
 
@@ -490,9 +496,21 @@ const AccountantLeads = () => {
         }
     };
 
-    const handleStatusUpdate = async (leadId, newStatus) => {
+    const requestStatusChange = (leadId, newStatus, currentStatusRaw) => {
+        const current = currentStatusRaw || 'sanctioned';
+        if (!leadId || newStatus === current) return;
+        setConfirmStatusChange({
+            isOpen: true,
+            leadId,
+            currentStatus: current,
+            newStatus,
+        });
+    };
+
+    const handleStatusChangeConfirm = async () => {
+        const { leadId, newStatus } = confirmStatusChange;
         if (!leadId) {
-            toast.error('Error', 'Customer ID is missing');
+            setConfirmStatusChange({ isOpen: false, leadId: null, currentStatus: '', newStatus: '' });
             return;
         }
         try {
@@ -502,6 +520,8 @@ const AccountantLeads = () => {
         } catch (error) {
             console.error('Error updating lead status:', error);
             toast.error('Error', error.message || 'Failed to update customer status');
+        } finally {
+            setConfirmStatusChange({ isOpen: false, leadId: null, currentStatus: '', newStatus: '' });
         }
     };
 
@@ -1351,7 +1371,9 @@ const AccountantLeads = () => {
                                                         </button>
                                                         <select
                                                             value={lead.status || 'sanctioned'}
-                                                            onChange={(e) => handleStatusUpdate(lead._id, e.target.value)}
+                                                            onChange={(e) =>
+                                                                requestStatusChange(lead._id, e.target.value, lead.status)
+                                                            }
                                                             className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500"
                                                             onClick={(e) => e.stopPropagation()}
                                                         >
@@ -1801,6 +1823,19 @@ const AccountantLeads = () => {
                 confirmText="Delete"
                 cancelText="Cancel"
                 type="danger"
+            />
+
+            <ConfirmModal
+                isOpen={confirmStatusChange.isOpen}
+                onClose={() =>
+                    setConfirmStatusChange({ isOpen: false, leadId: null, currentStatus: '', newStatus: '' })
+                }
+                onConfirm={handleStatusChangeConfirm}
+                title="Change customer status?"
+                message={`Are you sure you want to change the status from ${formatLeadStatusLabel(confirmStatusChange.currentStatus)} to ${formatLeadStatusLabel(confirmStatusChange.newStatus)}?`}
+                confirmText="Change status"
+                cancelText="Cancel"
+                type="warning"
             />
 
             {/* Disbursement Email Modal */}

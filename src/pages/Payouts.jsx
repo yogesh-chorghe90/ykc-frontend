@@ -10,7 +10,7 @@ import { toast } from '../services/toastService'
 import { exportToExcel } from '../utils/exportExcel'
 import { canExportData } from '../utils/roleUtils'
 import { authService } from '../services/auth.service'
-import { formatInCrores } from '../utils/formatUtils'
+import { formatInCrores, formatPayoutStatusLabel } from '../utils/formatUtils'
 
 const Payouts = () => {
   const userRole = authService.getUser()?.role || ''
@@ -38,6 +38,11 @@ const Payouts = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedPayout, setSelectedPayout] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, payout: null })
+  const [confirmPayoutStatus, setConfirmPayoutStatus] = useState({
+    isOpen: false,
+    payout: null,
+    newStatus: '',
+  })
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
   const getAgentId = (agent) => String(agent?._id || agent?.id || agent || '')
@@ -281,9 +286,21 @@ const Payouts = () => {
 
   const [updatingStatusId, setUpdatingStatusId] = useState(null)
 
-  const handleStatusChange = async (payout, newStatus) => {
+  const handleStatusChange = (payout, newStatus) => {
     const id = payout._id || payout.id
     if (!id) return
+    const current = payout.status || 'pending'
+    if (newStatus === current) return
+    setConfirmPayoutStatus({ isOpen: true, payout, newStatus })
+  }
+
+  const handlePayoutStatusConfirm = async () => {
+    const { payout, newStatus } = confirmPayoutStatus
+    const id = payout?._id || payout?.id
+    if (!id) {
+      setConfirmPayoutStatus({ isOpen: false, payout: null, newStatus: '' })
+      return
+    }
     try {
       setUpdatingStatusId(id)
       await api.payouts.update(id, { status: newStatus })
@@ -294,6 +311,7 @@ const Payouts = () => {
       toast.error('Error', error.message || 'Failed to update status')
     } finally {
       setUpdatingStatusId(null)
+      setConfirmPayoutStatus({ isOpen: false, payout: null, newStatus: '' })
     }
   }
 
@@ -1035,6 +1053,17 @@ const Payouts = () => {
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
+      />
+
+      <ConfirmModal
+        isOpen={confirmPayoutStatus.isOpen}
+        onClose={() => setConfirmPayoutStatus({ isOpen: false, payout: null, newStatus: '' })}
+        onConfirm={handlePayoutStatusConfirm}
+        title="Change payout status?"
+        message={`Are you sure you want to change the status from ${formatPayoutStatusLabel(confirmPayoutStatus.payout?.status || 'pending')} to ${formatPayoutStatusLabel(confirmPayoutStatus.newStatus)}?`}
+        confirmText="Change status"
+        cancelText="Cancel"
+        type="warning"
       />
     </div>
   )

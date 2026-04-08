@@ -13,6 +13,7 @@ import { canExportData } from '../utils/roleUtils'
 import { authService } from '../services/auth.service'
 import { downloadInvoicePDF, loadLogoFromPublic } from '../utils/generateInvoicePDF'
 import { preloadRobotoFont, getCachedRobotoFont } from '../utils/robotoFont'
+import { formatInvoiceStatusLabel } from '../utils/formatUtils'
 
 const getInvoiceLineAmount = (inv) => {
   const n = Number(inv?.commissionAmount ?? inv?.netPayable ?? inv?.amount ?? 0)
@@ -48,6 +49,12 @@ const Invoices = () => {
   const [detailModalAttachments, setDetailModalAttachments] = useState([])
   const [loadingDetailAttachments, setLoadingDetailAttachments] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, invoice: null })
+  const [confirmInvoiceStatus, setConfirmInvoiceStatus] = useState({
+    isOpen: false,
+    invoice: null,
+    currentStatus: '',
+    newStatus: '',
+  })
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
   useEffect(() => {
@@ -402,6 +409,32 @@ const Invoices = () => {
     } catch (error) {
       console.error('Error deleting invoice:', error)
       toast.error('Error', error.message || 'Failed to delete invoice')
+    }
+  }
+
+  const requestInvoiceStatusChange = (invoice, newStatus) => {
+    const current = invoice.status || 'pending'
+    const invoiceId = invoice.id || invoice._id
+    if (!invoiceId || newStatus === current) return
+    setConfirmInvoiceStatus({ isOpen: true, invoice, currentStatus: current, newStatus })
+  }
+
+  const handleInvoiceStatusConfirm = async () => {
+    const { invoice, newStatus } = confirmInvoiceStatus
+    const invoiceId = invoice?.id || invoice?._id
+    if (!invoiceId) {
+      setConfirmInvoiceStatus({ isOpen: false, invoice: null, currentStatus: '', newStatus: '' })
+      return
+    }
+    try {
+      await api.invoices.update(invoiceId, { status: newStatus })
+      toast.success('Success', `Invoice status updated to ${newStatus}`)
+      await fetchInvoices()
+    } catch (error) {
+      console.error('Error updating invoice status:', error)
+      toast.error('Error', error.message || 'Failed to update invoice status')
+    } finally {
+      setConfirmInvoiceStatus({ isOpen: false, invoice: null, currentStatus: '', newStatus: '' })
     }
   }
 
@@ -790,21 +823,14 @@ const Invoices = () => {
                         {canEditInvoice && (
                           <select
                             value={invoice.status || 'pending'}
-                            onChange={async (e) => {
-                              const newStatus = e.target.value;
-                              const invoiceId = invoice.id || invoice._id;
+                            onChange={(e) => {
+                              const newStatus = e.target.value
+                              const invoiceId = invoice.id || invoice._id
                               if (!invoiceId) {
-                                toast.error('Error', 'Invoice ID is missing');
-                                return;
+                                toast.error('Error', 'Invoice ID is missing')
+                                return
                               }
-                              try {
-                                await api.invoices.update(invoiceId, { status: newStatus });
-                                toast.success('Success', `Invoice status updated to ${newStatus}`);
-                                await fetchInvoices();
-                              } catch (error) {
-                                console.error('Error updating invoice status:', error);
-                                toast.error('Error', error.message || 'Failed to update invoice status');
-                              }
+                              requestInvoiceStatusChange(invoice, newStatus)
                             }}
                             onClick={(e) => e.stopPropagation()}
                             className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white"
@@ -1139,6 +1165,19 @@ const Invoices = () => {
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
+      />
+
+      <ConfirmModal
+        isOpen={confirmInvoiceStatus.isOpen}
+        onClose={() =>
+          setConfirmInvoiceStatus({ isOpen: false, invoice: null, currentStatus: '', newStatus: '' })
+        }
+        onConfirm={handleInvoiceStatusConfirm}
+        title="Change invoice status?"
+        message={`Are you sure you want to change the status from ${formatInvoiceStatusLabel(confirmInvoiceStatus.currentStatus)} to ${formatInvoiceStatusLabel(confirmInvoiceStatus.newStatus)}?`}
+        confirmText="Change status"
+        cancelText="Cancel"
+        type="warning"
       />
     </div>
   )
