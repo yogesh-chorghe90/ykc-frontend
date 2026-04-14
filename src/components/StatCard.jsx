@@ -14,7 +14,7 @@ const StatCard = ({ title, value, icon: Icon, color = 'blue' }) => {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4 w-full h-full min-h-[78px]">
       <div className="flex items-center justify-between h-full gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] md:text-xs font-medium text-gray-600 leading-tight">
+          <p className="text-[11px] md:text-xs font-medium text-gray-600 leading-tight uppercase tracking-wide">
             {title}
           </p>
           <p className="text-lg md:text-xl font-bold text-gray-900 mt-1 leading-snug break-words">

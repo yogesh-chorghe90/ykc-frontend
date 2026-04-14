@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react'
-import { uppercasePayload } from '../utils/uppercasePayload'
-
 const LOAN_TYPES = [
   { value: 'personal_loan', label: 'Personal Loan' },
   { value: 'home_loan', label: 'Home Loan' },
@@ -50,7 +48,7 @@ const BankForm = ({ bank, onSave, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      onSave(uppercasePayload(formData))
+      onSave(formData)
     }
   }
 

@@ -467,6 +467,7 @@ const Payouts = () => {
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {canExportData(userRole) && (
             <button
+              type="button"
               onClick={() => {
                 const rows = filteredPayouts.map((p) => ({
                   payoutNumber: p.payoutNumber || 'N/A',
@@ -488,6 +489,7 @@ const Payouts = () => {
           )}
           {canCreate && (
             <button
+              type="button"
               onClick={handleCreate}
               className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
             >
@@ -500,7 +502,7 @@ const Payouts = () => {
 
       {/* Compact Summary Bar - Mobile Only */}
       <div className="md:hidden bg-gradient-to-r from-gray-50 to-white rounded-lg shadow-sm border border-gray-200 px-4 py-3.5">
-        <div className="flex items-center justify-between text-xs sm:text-sm">
+        <div className="flex items-center justify-between text-xs sm:text-sm uppercase tracking-wide">
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500 font-medium">Total</span>
             <span className="font-bold text-gray-900">{formatInCrores(totalAmount)}</span>
@@ -573,11 +575,11 @@ const Payouts = () => {
           onClick={() => setFiltersOpen((o) => !o)}
           className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
         >
-          <span className="flex items-center gap-2 font-medium text-gray-900">
-            <Filter className="w-5 h-5 text-gray-500" />
+          <span className="flex items-center gap-2 font-medium text-gray-900 uppercase tracking-wide">
+            <Filter className="w-5 h-5 text-gray-500 shrink-0" />
             Filter options
             {hasActiveFilters && (
-              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">Active</span>
+              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full uppercase">Active</span>
             )}
           </span>
           {filtersOpen ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}

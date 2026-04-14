@@ -1249,21 +1249,23 @@ const Leads = () => {
             }}
             disabled={sortedLeads.length === 0}
             title="Export currently filtered data to Excel"
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            type="button"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wide"
           >
-            <FileDown className="w-4 h-4" />
-            <span className="hidden sm:inline">Export to Excel</span>
+            <FileDown className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline whitespace-nowrap">Export to Excel</span>
             <span className="sm:hidden">Export</span>
           </button>
           )}
           <div className="relative">
             <button
+              type="button"
               data-column-settings-button
               onClick={() => setShowColumnSettings(!showColumnSettings)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm uppercase tracking-wide"
             >
-              <Settings2 className="w-4 h-4" />
-              <span>Columns</span>
+              <Settings2 className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Columns</span>
             </button>
             {showColumnSettings && (
               <div data-column-settings className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50 min-w-[350px] max-h-[600px] overflow-y-auto">
@@ -1323,11 +1325,12 @@ const Leads = () => {
           </div>
           {canCreate && (
             <button
+              type="button"
               onClick={handleCreate}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors text-sm font-medium min-h-[44px] sm:min-h-0"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 md:py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors text-sm font-medium min-h-[44px] sm:min-h-0 uppercase tracking-wide"
             >
-              <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Create Customer</span>
+              <Plus className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
+              <span className="whitespace-nowrap">Create Customer</span>
             </button>
           )}
         </div>
@@ -1340,11 +1343,11 @@ const Leads = () => {
           onClick={() => setFiltersOpen((o) => !o)}
           className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
         >
-          <span className="flex items-center gap-2 font-medium text-gray-900 text-sm md:text-base">
-            <Filter className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />
+          <span className="flex items-center gap-2 font-medium text-gray-900 text-sm md:text-base uppercase tracking-wide">
+            <Filter className="w-4 h-4 md:w-5 md:h-5 text-gray-500 shrink-0" />
             Filter options
             {hasActiveFilters && (
-              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">Active</span>
+              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full uppercase">Active</span>
             )}
           </span>
           {filtersOpen ? <ChevronUp className="w-4 h-4 md:w-5 md:h-5 text-gray-500" /> : <ChevronDown className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />}

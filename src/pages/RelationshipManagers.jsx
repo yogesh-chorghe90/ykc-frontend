@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Users, TrendingUp, ChevronDown, ChevronUp, FileDown, Store } from 'lucide-react'
+import { Plus, Search, Filter, Eye, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Users, TrendingUp, ChevronDown, ChevronUp, Store } from 'lucide-react'
 import IndianRupeeIcon from '../components/IndianRupeeIcon'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
@@ -10,8 +10,6 @@ import StatCard from '../components/StatCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { toast } from '../services/toastService'
 import { formatAadhaarNumber, formatBankAccountNumber, formatMobileNumber, formatPanNumber } from '../utils/identifierFormatters'
-import { exportToExcel } from '../utils/exportExcel'
-
 const RelationshipManagers = () => {
   const [relationshipManagers, setRelationshipManagers] = useState([])
   const [franchises, setFranchises] = useState([])
@@ -314,40 +312,14 @@ const RelationshipManagers = () => {
           <p className="text-sm text-gray-600 mt-1">Manage relationship managers</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const rows = sortedRMs.map((r) => {
-                const ownerId = r.owner?._id || r.owner
-                const stats = getRMStats(ownerId)
-                return {
-                  Name: r.name || 'N/A',
-                  'Owner': r.regionalManager?.name || r.ownerName || 'N/A',
-                  Email: r.email || 'N/A',
-                  City: r.address?.city || 'N/A',
-                  State: r.address?.state || 'N/A',
-                  Partners: stats.agents,
-                  Customers: stats.leads,
-                  Revenue: stats.revenue,
-                  Status: r.status || 'N/A',
-                }
-              })
-              exportToExcel(rows, `relationship_managers_export_${Date.now()}`, 'Relationship Managers')
-              toast.success('Export', `Exported ${rows.length} relationship managers to Excel`)
-            }}
-            disabled={sortedRMs.length === 0}
-            title="Export to Excel"
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <FileDown className="w-5 h-5" />
-            <span>Export to Excel</span>
-          </button>
           {canCreateRM && (
             <button
+              type="button"
               onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors uppercase tracking-wide"
             >
-              <Plus className="w-5 h-5" />
-              <span>Create Relationship Manager</span>
+              <Plus className="w-5 h-5 shrink-0" />
+              <span className="whitespace-nowrap">Create Relationship Manager</span>
             </button>
           )}
         </div>
@@ -355,7 +327,7 @@ const RelationshipManagers = () => {
 
       {/* Compact Summary Bar - Mobile Only */}
       <div className="md:hidden bg-gradient-to-r from-gray-50 to-white rounded-lg shadow-sm border border-gray-200 px-4 py-3.5">
-        <div className="flex items-center justify-between text-xs sm:text-sm">
+        <div className="flex items-center justify-between text-xs sm:text-sm uppercase tracking-wide">
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500 font-medium">Total</span>
             <span className="font-bold text-gray-900">{totalRMs}</span>
@@ -378,10 +350,10 @@ const RelationshipManagers = () => {
       {/* Filters - Sticky on Mobile */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden md:relative sticky top-0 z-20 md:z-auto md:shadow-sm">
         <button type="button" onClick={() => setFiltersOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors">
-          <span className="flex items-center gap-2 font-medium text-gray-900">
-            <Filter className="w-5 h-5 text-gray-500" />
+          <span className="flex items-center gap-2 font-medium text-gray-900 uppercase tracking-wide">
+            <Filter className="w-5 h-5 text-gray-500 shrink-0" />
             Filter options
-            {hasActiveFilters && <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">Active</span>}
+            {hasActiveFilters && <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full uppercase">Active</span>}
           </span>
           {filtersOpen ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
         </button>
@@ -416,8 +388,8 @@ const RelationshipManagers = () => {
             </div>
             {hasActiveFilters && (
               <div className="flex items-center gap-2 pt-1">
-                <button type="button" onClick={clearFilters} className="text-sm text-primary-600 hover:text-primary-800 font-medium">Clear all filters</button>
-                <span className="text-sm text-gray-500">Showing {filteredRMs.length} of {relationshipManagers.length} relationship managers</span>
+                <button type="button" onClick={clearFilters} className="text-sm text-primary-600 hover:text-primary-800 font-medium uppercase tracking-wide">Clear all filters</button>
+                <span className="text-sm text-gray-500 uppercase tracking-wide">Showing {filteredRMs.length} of {relationshipManagers.length} relationship managers</span>
               </div>
             )}
           </div>

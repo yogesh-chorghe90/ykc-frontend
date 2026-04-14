@@ -232,11 +232,12 @@ const Form16 = () => {
         {/* Primary Action Button - Full Width on Mobile (Admin/Accountant only) */}
         {isAdminOrAccountant && (
           <button
+            type="button"
             onClick={handleCreate}
-            className="w-full md:w-auto md:ml-auto flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+            className="w-full md:w-auto md:ml-auto flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors uppercase tracking-wide"
           >
-            <Plus className="w-5 h-5" />
-            <span>Create Form 16</span>
+            <Plus className="w-5 h-5 shrink-0" />
+            <span className="whitespace-nowrap">Create Form 16</span>
           </button>
         )}
       </div>
@@ -253,12 +254,12 @@ const Form16 = () => {
           onClick={() => setFiltersOpen((o) => !o)}
           className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
         >
-          <span className="flex items-center gap-2 font-medium text-gray-900 text-sm">
-            <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+          <span className="flex items-center gap-2 font-medium text-gray-900 text-sm uppercase tracking-wide">
+            <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 shrink-0" />
             <span className="hidden sm:inline">Filter options</span>
             <span className="sm:hidden">Filters</span>
             {hasActiveFilters && (
-              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full">
+              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded-full uppercase">
                 Active
               </span>
             )}

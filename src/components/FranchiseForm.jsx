@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import PasswordInput from './PasswordInput'
 import { authService } from '../services/auth.service'
 import { api } from '../services/api'
 import Modal from './Modal'
@@ -14,7 +15,6 @@ import {
   isValidGstNumber,
   isValidIfscCode,
 } from '../utils/identifierFormatters'
-import { uppercasePayload } from '../utils/uppercasePayload'
 
 const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
   const isCreate = !franchise
@@ -133,7 +133,11 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      const payload = uppercasePayload({ ...formData })
+      const payload = { ...formData }
+      // Backend creates a User with `name` from ownerName; default to franchise name when not collected separately.
+      if (isCreate && !String(payload.ownerName || '').trim()) {
+        payload.ownerName = String(payload.name || '').trim()
+      }
       if (!isCreate) {
         delete payload.password
       }
@@ -321,11 +325,11 @@ const FranchiseForm = ({ franchise, onSave, onClose, isSaving = false }) => {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Login Password <span className="text-red-500">*</span>
           </label>
-          <input
-            type="password"
+          <PasswordInput
             name="password"
             value={formData.password}
             onChange={handleChange}
+            autoComplete="new-password"
             className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="Min 6 characters"
           />

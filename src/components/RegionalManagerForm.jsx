@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { uppercasePayload } from '../utils/uppercasePayload'
-
+import PasswordInput from './PasswordInput'
 const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
   const isEdit = !!regionalManager
   const [formData, setFormData] = useState({
@@ -44,7 +43,7 @@ const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      const dataToSave = uppercasePayload({ ...formData, role: 'regional_manager' })
+      const dataToSave = { ...formData, role: 'regional_manager' }
       // If editing and password is empty, don't include it in the update
       if (isEdit && !formData.password) {
         delete dataToSave.password
@@ -102,11 +101,11 @@ const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
           Password {!isEdit && <span className="text-red-500">*</span>}
           {isEdit && <span className="text-gray-500 text-xs">(leave blank to keep current password)</span>}
         </label>
-        <input
-          type="password"
+        <PasswordInput
           name="password"
           value={formData.password}
           onChange={handleChange}
+          autoComplete="new-password"
           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
           placeholder={isEdit ? "Leave blank to keep current password" : "Min 6 characters"}
         />

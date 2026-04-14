@@ -10,7 +10,7 @@ import {
   isValidGstNumber,
   isValidIfscCode,
 } from '../utils/identifierFormatters'
-import { uppercasePayload } from '../utils/uppercasePayload'
+import PasswordInput from './PasswordInput'
 
 const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = null, fixedManagedByModel = null, hideManagedBySelector = false }) => {
   const currentUser = useMemo(() => authService.getUser(), [])
@@ -242,7 +242,7 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       return formData
     }
 
-    const resolved = uppercasePayload(resolveManagedByIfNeeded())
+    const resolved = resolveManagedByIfNeeded()
     setFormData(resolved)
     if (validate(resolved)) {
       const files = {
@@ -602,11 +602,11 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Password {agent ? '(Optional)' : <span className="text-red-500">*</span>}
         </label>
-        <input
-          type="password"
+        <PasswordInput
           name="password"
           value={formData.password}
           onChange={handleChange}
+          autoComplete="new-password"
           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'
             }`}
           placeholder="Enter password (min 6 characters)"

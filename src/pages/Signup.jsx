@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
 import API_BASE_URL from '../config/api'
+import PasswordInput from '../components/PasswordInput'
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -239,16 +240,15 @@ const Signup = () => {
                 <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
                   Password
                 </label>
-                <input
+                <PasswordInput
                   id="password"
                   name="password"
-                  type="password"
                   autoComplete="new-password"
                   required
-                  className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-400"
-                  placeholder="Password (min 6 characters)"
                   value={formData.password}
                   onChange={handleChange}
+                  placeholder="Password (min 6 characters)"
+                  className="block w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-gray-900 placeholder-gray-400"
                 />
               </div>
             </div>

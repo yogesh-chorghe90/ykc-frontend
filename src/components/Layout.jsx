@@ -43,7 +43,7 @@ const Layout = () => {
         isMobile ? 'ml-0' : sidebarMinimized ? 'ml-20' : 'ml-64'
       } relative z-0 min-w-0 overflow-hidden`}>
         <Header onMenuClick={() => setSidebarOpen(true)} isMobile={isMobile} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 relative z-10 w-full">
+        <main className="main-content flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 relative z-10 w-full">
           <div className="w-full max-w-full mx-auto h-full">
             <Outlet />
           </div>

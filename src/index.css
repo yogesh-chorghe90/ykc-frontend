@@ -40,15 +40,92 @@ html {
   scrollbar-width: thin;
 }
 
-/* Render all table body data in uppercase */
+/* Render table body data in uppercase (display only) */
 table tbody td {
   text-transform: uppercase;
 }
 
+/*
+ * Form field titles — uppercase labels (display only).
+ * `.lead-form` covers LeadForm (it uses a div root, not <form>).
+ */
+form label,
+.lead-form label {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/*
+ * Editable fields: show exactly what the user types (mixed case).
+ * Saved rows are shown in capitals via `table tbody td` and optional `.data-display-uppercase`.
+ */
+form input,
+form textarea,
+form select,
+form select option,
+.lead-form input,
+.lead-form textarea,
+.lead-form select,
+.lead-form select option {
+  text-transform: none;
+}
+
 /* But keep email ids lowercase (mark the value with .email-lowercase or data-email="true") */
 .email-lowercase,
-[data-email="true"] {
+[data-email='true'] {
   text-transform: lowercase !important;
+}
+
+/*
+ * Main app content (see Layout.jsx `main.main-content`): uppercase page titles and filters.
+ * Modals are typically portaled outside <main>, so modal copy is controlled separately.
+ */
+.main-content h1 {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.main-content h1 + p {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.main-content label {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.main-content input,
+.main-content textarea,
+.main-content select,
+.main-content select option {
+  text-transform: none;
+}
+
+/*
+ * Read-only / fetched values outside tables (detail cards, inline text).
+ */
+.data-display-uppercase {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/*
+ * List page toolbar buttons (display only — does not change API payloads).
+ * Applies to primary/secondary actions and outlined Export buttons inside <main>.
+ */
+.main-content button.bg-primary-900.text-white,
+.main-content button.bg-primary-800.text-white,
+.main-content button.bg-primary-700.text-white,
+.main-content button.bg-primary-600.text-white,
+.main-content button.bg-gray-100.text-gray-700 {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.main-content button.border-gray-300 {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .table-wrapper::-webkit-scrollbar {

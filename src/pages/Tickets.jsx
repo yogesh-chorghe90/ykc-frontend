@@ -260,11 +260,12 @@ const Tickets = () => {
         </div>
         {isAgent && (
           <button
+            type="button"
             onClick={() => setIsRaiseModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 uppercase tracking-wide"
           >
-            <Plus className="w-5 h-5" />
-            Raise Service Request
+            <Plus className="w-5 h-5 shrink-0" />
+            <span className="whitespace-nowrap">Raise Service Request</span>
           </button>
         )}
       </div>

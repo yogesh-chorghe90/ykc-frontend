@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { uppercasePayload } from '../utils/uppercasePayload'
+import PasswordInput from './PasswordInput'
 
 const AccountantManagerForm = ({ accountantManager, onSave, onClose, isSaving = false }) => {
     const isEdit = !!accountantManager
@@ -69,7 +69,7 @@ const AccountantManagerForm = ({ accountantManager, onSave, onClose, isSaving = 
     const handleSubmit = (e) => {
         e.preventDefault()
         if (validate()) {
-            const payload = uppercasePayload({ ...formData, role: 'accounts_manager' })
+            const payload = { ...formData, role: 'accounts_manager' }
             if (isEdit && !payload.password) {
                 delete payload.password // Don't update password if empty during edit
             }
@@ -145,11 +145,11 @@ const AccountantManagerForm = ({ accountantManager, onSave, onClose, isSaving = 
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                         Password {!isEdit && <span className="text-red-500">*</span>}
                     </label>
-                    <input
-                        type="password"
+                    <PasswordInput
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
+                        autoComplete="new-password"
                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
                         placeholder={isEdit ? "Leave blank to keep current" : "Min 6 characters"}
                     />

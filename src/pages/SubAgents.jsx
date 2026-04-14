@@ -232,17 +232,18 @@ const SubAgents = () => {
           <p className="text-sm text-gray-600 mt-1">Manage your sub-partner profiles</p>
         </div>
         <button
+          type="button"
           onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors uppercase tracking-wide"
         >
-          <Plus className="w-5 h-5" />
-          <span>Create Sub Partner</span>
+          <Plus className="w-5 h-5 shrink-0" />
+          <span className="whitespace-nowrap">Create Sub Partner</span>
         </button>
       </div>
 
       {/* Compact Summary Bar - Mobile Only */}
       <div className="md:hidden bg-gradient-to-r from-gray-50 to-white rounded-lg shadow-sm border border-gray-200 px-4 py-3.5">
-        <div className="flex items-center justify-between text-xs sm:text-sm">
+        <div className="flex items-center justify-between text-xs sm:text-sm uppercase tracking-wide">
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500 font-medium">Total</span>
             <span className="font-bold text-gray-900">{totalSubAgents}</span>

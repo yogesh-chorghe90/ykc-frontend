@@ -4,8 +4,6 @@ import api from '../services/api';
 import { toast } from '../services/toastService';
 import { authService } from '../services/auth.service';
 import { logoutAndRedirect } from '../services/authSession';
-import { uppercasePayload } from '../utils/uppercasePayload'
-
 const NEW_LEAD_OPTION = 'new_lead';
 
 /** Valid MongoDB ObjectId string for pre-lead document uploads (Document.entityId requires ObjectId). */
@@ -977,13 +975,13 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     }
 
     // Pass to parent
-    if (onSave) onSave(uppercasePayload(payload));
+    if (onSave) onSave(payload);
   };
 
   const isNewLead = selectedBank === NEW_LEAD_OPTION || leadFormDef?.leadType === 'new_lead';
 
   return (
-    <div className="space-y-6">
+    <div className="lead-form space-y-6">
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
         <label className="block text-sm font-bold text-gray-700 mb-2">
           {isNewLead ? 'Customer Type' : 'Select Bank'} {!isNewLead && '*'}

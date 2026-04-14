@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
+import PasswordInput from './PasswordInput'
 import api from '../services/api'
 import { formatMobileNumber } from '../utils/identifierFormatters'
-import { uppercasePayload } from '../utils/uppercasePayload'
-
 const RelationshipManagerForm = ({ relationshipManager, onSave, onClose, isSaving = false }) => {
   const isCreate = !relationshipManager
   const [formData, setFormData] = useState({
@@ -65,11 +64,11 @@ const RelationshipManagerForm = ({ relationshipManager, onSave, onClose, isSavin
   const handleSubmit = (e) => {
     e.preventDefault()
     if (validate()) {
-      const payload = uppercasePayload({
+      const payload = {
         ...formData,
         // Backend requires ownerName; default to the same as RM name if not explicitly set
         ownerName: (formData.ownerName || formData.name || '').trim(),
-      })
+      }
       if (!isCreate) {
         delete payload.password
       }
@@ -141,11 +140,11 @@ const RelationshipManagerForm = ({ relationshipManager, onSave, onClose, isSavin
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Password <span className="text-red-500">*</span>
           </label>
-          <input
-            type="password"
+          <PasswordInput
             name="password"
             value={formData.password}
             onChange={handleChange}
+            autoComplete="new-password"
             className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="Min 6 characters"
           />

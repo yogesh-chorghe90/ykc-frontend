@@ -126,7 +126,7 @@ const Header = ({ onMenuClick, isMobile = false }) => {
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
         )}
-        <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 truncate">{getDashboardTitle()}</h1>
+        <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 truncate uppercase tracking-wide">{getDashboardTitle()}</h1>
         <div className="flex items-center gap-2">
         </div>
       </div>

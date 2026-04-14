@@ -184,7 +184,7 @@ const AccountantManagers = () => {
 
             {/* Compact Summary Bar - Mobile Only */}
             <div className="md:hidden bg-gradient-to-r from-gray-50 to-white rounded-lg shadow-sm border border-gray-200 px-4 py-3.5">
-                <div className="flex items-center justify-between text-xs sm:text-sm">
+                <div className="flex items-center justify-between text-xs sm:text-sm uppercase tracking-wide">
                     <div className="flex items-center gap-1.5">
                         <span className="text-gray-500 font-medium">Total</span>
                         <span className="font-bold text-gray-900">{accountantManagers.length}</span>
