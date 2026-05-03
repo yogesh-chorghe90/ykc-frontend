@@ -65,6 +65,12 @@ export const api = {
         });
         return response.data;
       } catch (error) {
+        if (!error?.response && (error?.code === 'ECONNREFUSED' || error?.message === 'Network Error')) {
+          const origin = API_BASE_URL.replace(/\/api\/?$/, '');
+          throw new Error(
+            `Cannot reach the API at ${origin}. Start the backend (e.g. npm run dev in backend) and ensure SERVER_PORT matches VITE_API_BASE_URL.`
+          );
+        }
         const message =
           error?.response?.data?.message ||
           error?.response?.data?.error ||

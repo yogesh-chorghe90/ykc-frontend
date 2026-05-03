@@ -1,15 +1,36 @@
 import { useState, useRef, useEffect } from 'react'
-import { User, Mail, Phone, Camera, Save, X } from 'lucide-react'
+import { User, Camera, Save, X } from 'lucide-react'
 import { toast } from '../services/toastService'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
+
+function buildUserState(userData) {
+  return {
+    name: userData.name || userData.fullName || 'User Name',
+    email: userData.email || 'user@example.com',
+    phone: userData.phone || userData.mobile || '',
+    profileImage: userData.profileImage || null,
+    role: userData.role || null,
+    status: userData.status ?? null,
+    franchise: userData.franchise ?? null,
+    managedBy: userData.managedBy ?? null,
+    managedByModel: userData.managedByModel ?? null,
+    agentType: userData.agentType ?? null,
+    commissionPercentage: userData.commissionPercentage ?? null,
+    kyc: userData.kyc || {},
+    bankDetails: userData.bankDetails || {},
+    lastLoginAt: userData.lastLoginAt ?? null,
+    createdAt: userData.createdAt ?? null,
+    updatedAt: userData.updatedAt ?? null,
+    permissions: userData.permissions || [],
+  }
+}
 
 const Settings = () => {
   const [user, setUser] = useState({
     name: 'User Name',
     email: 'user@example.com',
     phone: '',
-    mobile: '',
     profileImage: null,
     role: null,
     status: null,
@@ -29,6 +50,7 @@ const Settings = () => {
   const [previewImage, setPreviewImage] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -43,69 +65,30 @@ const Settings = () => {
         setLoading(true)
         const response = await api.auth.getCurrentUser()
         const userData = response.data || response
-        
+
         if (userData) {
-          const userState = {
-            name: userData.name || userData.fullName || 'User Name',
-            email: userData.email || 'user@example.com',
-            phone: userData.phone || userData.mobile || '',
-            mobile: userData.mobile || userData.phone || '',
-            profileImage: userData.profileImage || null,
-            role: userData.role || null,
-            status: userData.status ?? null,
-            franchise: userData.franchise ?? null,
-            managedBy: userData.managedBy ?? null,
-            managedByModel: userData.managedByModel ?? null,
-            agentType: userData.agentType ?? null,
-            commissionPercentage: userData.commissionPercentage ?? null,
-            kyc: userData.kyc || {},
-            bankDetails: userData.bankDetails || {},
-            lastLoginAt: userData.lastLoginAt ?? null,
-            createdAt: userData.createdAt ?? null,
-            updatedAt: userData.updatedAt ?? null,
-            permissions: userData.permissions || [],
-          }
-          
+          const userState = buildUserState(userData)
+
           setUser(userState)
           setFormData({
             name: userState.name,
             email: userState.email,
-            phone: userState.phone || userState.mobile,
+            phone: userState.phone,
           })
-          
-          // Update authService user data
+
           authService.setUser(userData)
-          
-          // Dispatch custom event to notify other components
           window.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: userData }))
         }
       } catch (error) {
         console.error('Error fetching user:', error)
-        // Fallback to localStorage user
         const storedUser = authService.getUser()
         if (storedUser) {
-          const userState = {
-            name: storedUser.name || storedUser.fullName || 'User Name',
-            email: storedUser.email || 'user@example.com',
-            phone: storedUser.phone || storedUser.mobile || '',
-            mobile: storedUser.mobile || storedUser.phone || '',
-            profileImage: storedUser.profileImage || null,
-            role: storedUser.role || null,
-            status: storedUser.status ?? null,
-            franchise: storedUser.franchise ?? null,
-            commissionPercentage: storedUser.commissionPercentage ?? null,
-            kyc: storedUser.kyc || {},
-            bankDetails: storedUser.bankDetails || {},
-            lastLoginAt: storedUser.lastLoginAt ?? null,
-            createdAt: storedUser.createdAt ?? null,
-            updatedAt: storedUser.updatedAt ?? null,
-            permissions: storedUser.permissions || [],
-          }
+          const userState = buildUserState(storedUser)
           setUser(userState)
           setFormData({
             name: userState.name,
             email: userState.email,
-            phone: userState.phone || userState.mobile,
+            phone: userState.phone,
           })
         }
       } finally {
@@ -148,20 +131,59 @@ const Settings = () => {
   }
 
   const handleSave = async () => {
-    try {
-      // TODO: Replace with actual API call
-      // await fetch('/api/user/profile', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(formData),
-      // })
+    const name = formData.name?.trim()
+    const email = formData.email?.trim()?.toLowerCase()
+    const mobileDigits = (formData.phone || '').replace(/\s+/g, '').trim()
 
-      setUser((prev) => ({ ...prev, ...formData }))
+    if (!name) {
+      toast.error('Validation', 'Please enter your full name.')
+      return
+    }
+    if (!email) {
+      toast.error('Validation', 'Please enter your email address.')
+      return
+    }
+    if (!mobileDigits || mobileDigits.length < 10) {
+      toast.error('Validation', 'Please enter a valid mobile number (at least 10 digits).')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const payload = {
+        name,
+        email,
+        mobile: mobileDigits,
+        phone: mobileDigits,
+      }
+      if (formData.profileImage) {
+        payload.profileImage = formData.profileImage
+      }
+
+      const response = await api.auth.updateProfile(payload)
+      const userData = response?.data ?? response
+      if (!userData || typeof userData !== 'object' || userData._id == null) {
+        toast.error('Update Failed', 'Invalid response from server.')
+        return
+      }
+
+      const userState = buildUserState(userData)
+      setUser(userState)
+      setFormData({
+        name: userState.name,
+        email: userState.email,
+        phone: userState.phone,
+      })
+      authService.setUser(userData)
+      window.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: userData }))
+      setPreviewImage(null)
       setIsEditing(false)
       toast.success('Profile Updated', 'Your profile has been updated successfully!')
     } catch (error) {
       console.error('Error updating profile:', error)
-      toast.error('Update Failed', 'Failed to update profile. Please try again.')
+      // apiRequest already shows toast for HTTP errors
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -169,7 +191,7 @@ const Settings = () => {
     setFormData({
       name: user.name,
       email: user.email,
-      phone: user.phone || user.mobile,
+      phone: user.phone,
     })
     setIsEditing(false)
     setPreviewImage(null) // Clear preview on cancel
@@ -288,7 +310,7 @@ const Settings = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Phone Number
+              Mobile
             </label>
             {isEditing ? (
               <input
@@ -297,18 +319,11 @@ const Settings = () => {
                 value={formData.phone}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Enter your phone number"
+                placeholder="10-digit mobile number"
               />
             ) : (
-              <p className="text-sm text-gray-900 py-2">{user.phone}</p>
+              <p className="text-sm text-gray-900 py-2">{user.phone || '—'}</p>
             )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mobile
-            </label>
-            <p className="text-sm text-gray-900 py-2">{user.mobile || '—'}</p>
           </div>
 
           <div>
@@ -457,15 +472,19 @@ const Settings = () => {
           {isEditing && (
             <div className="md:col-span-2 flex items-center gap-3 pt-4 border-t border-gray-200">
               <button
+                type="button"
                 onClick={handleSave}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors"
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-900 text-white rounded-lg hover:bg-primary-800 transition-colors disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Save className="w-4 h-4" />
-                <span>Save Changes</span>
+                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
               </button>
               <button
+                type="button"
                 onClick={handleCancel}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
                 <span>Cancel</span>

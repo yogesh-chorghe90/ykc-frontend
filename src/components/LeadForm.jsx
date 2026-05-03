@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Upload, X, File, ExternalLink, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import API_BASE_URL from '../config/api';
 import { toast } from '../services/toastService';
 import { authService } from '../services/auth.service';
 import { logoutAndRedirect } from '../services/authSession';
@@ -26,8 +27,7 @@ const LOAN_TYPES = [
 const openDocument = async (docId, mimeType) => {
   try {
     const token = authService.getToken()
-    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-    const base = rawBase.replace(/\/+$/, '').replace(/\/api$/, '')
+    const base = API_BASE_URL.replace(/\/+$/, '').replace(/\/api$/, '')
     const res = await fetch(`${base}/api/documents/${docId}/download`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: 'include',
