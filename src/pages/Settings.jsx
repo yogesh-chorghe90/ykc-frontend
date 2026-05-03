@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { User, Camera, Save, X } from 'lucide-react'
+import { User, Camera, Save, X, Eye, EyeOff } from 'lucide-react'
 import { toast } from '../services/toastService'
 import api from '../services/api'
 import { authService } from '../services/auth.service'
+import Modal from '../components/Modal'
 
 function buildUserState(userData) {
   return {
@@ -51,6 +52,18 @@ const Settings = () => {
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false)
+  const [passwordVisible, setPasswordVisible] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  })
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -195,6 +208,55 @@ const Settings = () => {
     })
     setIsEditing(false)
     setPreviewImage(null) // Clear preview on cancel
+  }
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false)
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    setPasswordVisible({ current: false, new: false, confirm: false })
+  }
+
+  const handlePasswordFieldChange = (e) => {
+    const { name, value } = e.target
+    setPasswordForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleChangePasswordSubmit = async (e) => {
+    e.preventDefault()
+    const { currentPassword, newPassword, confirmPassword } = passwordForm
+
+    if (!currentPassword || !newPassword) {
+      toast.error('Validation', 'Enter your current password and a new password.')
+      return
+    }
+    if (newPassword.length < 8) {
+      toast.error('Validation', 'New password must be at least 8 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Validation', 'New password and confirmation do not match.')
+      return
+    }
+    if (newPassword === currentPassword) {
+      toast.error('Validation', 'New password must be different from your current password.')
+      return
+    }
+
+    try {
+      setPasswordSubmitting(true)
+      const response = await api.auth.changePassword({ currentPassword, newPassword })
+      const msg = response?.message || 'Password changed. Please log in again.'
+      toast.success('Password updated', msg, 6000)
+      closePasswordModal()
+      authService.removeToken()
+      window.setTimeout(() => {
+        window.location.href = '/login'
+      }, 600)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setPasswordSubmitting(false)
+    }
   }
 
   if (loading) {
@@ -498,26 +560,135 @@ const Settings = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Settings</h2>
         <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-200">
+          <div className="flex items-center justify-between py-3">
             <div>
               <p className="text-sm font-medium text-gray-900">Change Password</p>
               <p className="text-xs text-gray-500">Update your password to keep your account secure</p>
             </div>
-            <button className="px-4 py-2 text-sm font-medium text-primary-900 hover:text-primary-800 transition-colors">
+            <button
+              type="button"
+              onClick={() => setShowPasswordModal(true)}
+              className="px-4 py-2 text-sm font-medium text-primary-900 hover:text-primary-800 transition-colors"
+            >
               Change
-            </button>
-          </div>
-          <div className="flex items-center justify-between py-3 border-b border-gray-200">
-            <div>
-              <p className="text-sm font-medium text-gray-900">Two-Factor Authentication</p>
-              <p className="text-xs text-gray-500">Add an extra layer of security to your account</p>
-            </div>
-            <button className="px-4 py-2 text-sm font-medium text-primary-900 hover:text-primary-800 transition-colors">
-              Enable
             </button>
           </div>
         </div>
       </div>
+
+      <Modal isOpen={showPasswordModal} onClose={closePasswordModal} title="Change password" size="sm">
+        <form onSubmit={handleChangePasswordSubmit} className="space-y-4 py-2">
+          <div>
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              Current password
+            </label>
+            <div className="relative">
+              <input
+                id="currentPassword"
+                name="currentPassword"
+                type={passwordVisible.current ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={passwordForm.currentPassword}
+                onChange={handlePasswordFieldChange}
+                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label={passwordVisible.current ? 'Hide password' : 'Show password'}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                onClick={() =>
+                  setPasswordVisible((v) => ({ ...v, current: !v.current }))
+                }
+              >
+                {passwordVisible.current ? (
+                  <EyeOff className="w-4 h-4" aria-hidden />
+                ) : (
+                  <Eye className="w-4 h-4" aria-hidden />
+                )}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              New password
+            </label>
+            <div className="relative">
+              <input
+                id="newPassword"
+                name="newPassword"
+                type={passwordVisible.new ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={passwordForm.newPassword}
+                onChange={handlePasswordFieldChange}
+                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label={passwordVisible.new ? 'Hide password' : 'Show password'}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                onClick={() => setPasswordVisible((v) => ({ ...v, new: !v.new }))}
+              >
+                {passwordVisible.new ? (
+                  <EyeOff className="w-4 h-4" aria-hidden />
+                ) : (
+                  <Eye className="w-4 h-4" aria-hidden />
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">At least 8 characters.</p>
+          </div>
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm new password
+            </label>
+            <div className="relative">
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={passwordVisible.confirm ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={passwordForm.confirmPassword}
+                onChange={handlePasswordFieldChange}
+                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label={passwordVisible.confirm ? 'Hide password' : 'Show password'}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                onClick={() =>
+                  setPasswordVisible((v) => ({ ...v, confirm: !v.confirm }))
+                }
+              >
+                {passwordVisible.confirm ? (
+                  <EyeOff className="w-4 h-4" aria-hidden />
+                ) : (
+                  <Eye className="w-4 h-4" aria-hidden />
+                )}
+              </button>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={closePasswordModal}
+              disabled={passwordSubmitting}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={passwordSubmitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-900 rounded-lg hover:bg-primary-800 disabled:opacity-50"
+            >
+              {passwordSubmitting ? 'Updating...' : 'Update password'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

@@ -100,6 +100,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+    changePassword: ({ currentPassword, newPassword }) =>
+      apiRequest('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }),
   },
 
   // Leads endpoints
