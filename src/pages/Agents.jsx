@@ -289,7 +289,10 @@ const Agents = () => {
     )
   }
 
-  const canCreatePartner = userRole === 'super_admin' || userRole === 'regional_manager'
+  const canCreatePartner =
+    userRole === 'super_admin' ||
+    userRole === 'regional_manager' ||
+    userRole === 'relationship_manager'
 
   const handleCreate = () => {
     setSelectedAgent(null)
