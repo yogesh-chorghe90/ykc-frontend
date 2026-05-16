@@ -3,12 +3,21 @@ import api from '../services/api'
 import { authService } from '../services/auth.service'
 import Modal from './Modal'
 import {
+  formatAadhaarNumber,
+  formatBankAccountNumber,
   formatGstNumber,
   formatIfscCode,
+  formatMobileNumber,
+  formatPanNumber,
   IFSC_FORMAT_HINT,
   isIfscValidOrIncomplete,
+  isValidEmail,
   isValidGstNumber,
   isValidIfscCode,
+  validateAadhaarNumber,
+  validateEmail,
+  validateMobileNumber,
+  validatePanNumber,
 } from '../utils/identifierFormatters'
 import PasswordInput from './PasswordInput'
 
@@ -133,7 +142,7 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       setFormData({
         name: agent.name || '',
         email: agent.email || '',
-        phone: agent.phone || agent.mobile || '',
+        phone: formatMobileNumber(agent.phone || agent.mobile || ''),
         status: agent.status || 'active',
         agentType: agent.agentType || 'normal',
         managedBy: managedById,
@@ -190,9 +199,25 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
     const data = dataParam || formData
     if (!data.name.trim()) newErrors.name = 'Name is required'
     if (!data.email.trim()) newErrors.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(data.email)) newErrors.email = 'Email is invalid'
-    if (!data.phone.trim()) newErrors.phone = 'Phone is required'
+    else if (!isValidEmail(data.email)) newErrors.email = 'Enter a valid email address'
+    if (!data.phone.trim()) {
+      newErrors.phone = 'Phone is required'
+    } else {
+      const phoneErr = validateMobileNumber(data.phone, formatMobileNumber(data.phone))
+      if (phoneErr) newErrors.phone = phoneErr
+    }
     if (!data.managedBy) newErrors.managedBy = `${data.managedByModel === 'Franchise' ? 'Franchise' : 'Relationship Manager'} is required`
+
+    const pan = data.kyc?.pan?.trim() || ''
+    if (pan) {
+      const panErr = validatePanNumber(pan, formatPanNumber(pan))
+      if (panErr) newErrors['kyc.pan'] = panErr
+    }
+    const aadhaar = data.kyc?.aadhaar?.trim() || ''
+    if (aadhaar) {
+      const aadhaarErr = validateAadhaarNumber(aadhaar, formatAadhaarNumber(aadhaar))
+      if (aadhaarErr) newErrors['kyc.aadhaar'] = aadhaarErr
+    }
 
     const ifsc = data.bankDetails?.ifsc?.trim() || ''
     if (ifsc && !isValidIfscCode(ifsc)) newErrors['bankDetails.ifsc'] = IFSC_FORMAT_HINT
@@ -263,6 +288,16 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
         value = formatIfscCode(value)
         const msg = value && !isIfscValidOrIncomplete(value) ? IFSC_FORMAT_HINT : ''
         setErrors((prev) => ({ ...prev, [name]: msg }))
+      } else if (parent === 'bankDetails' && child === 'accountNumber') {
+        value = formatBankAccountNumber(value)
+      } else if (parent === 'kyc' && child === 'pan') {
+        value = formatPanNumber(value)
+        const msg = value ? validatePanNumber(value, value) : ''
+        setErrors((prev) => ({ ...prev, [name]: msg }))
+      } else if (parent === 'kyc' && child === 'aadhaar') {
+        value = formatAadhaarNumber(value)
+        const msg = value ? validateAadhaarNumber(value, value) : ''
+        setErrors((prev) => ({ ...prev, [name]: msg }))
       } else if (parent === 'kyc' && child === 'gst') {
         value = formatGstNumber(value)
         const msg = value && !isValidGstNumber(value)
@@ -275,13 +310,22 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
         [parent]: { ...(prev[parent] || {}), [child]: value },
       }))
     } else {
+      if (name === 'phone') {
+        value = formatMobileNumber(value)
+        const msg = value ? validateMobileNumber(value, value) : ''
+        setErrors((prev) => ({ ...prev, phone: msg }))
+      } else if (name === 'email') {
+        const msg = value.trim() && !isValidEmail(value) ? validateEmail(value, value.trim()) : ''
+        setErrors((prev) => ({ ...prev, email: msg }))
+      }
       setFormData((prev) => ({ ...prev, [name]: value }))
       if (name === 'agentType' && value !== 'GST') {
         setErrors((prev) => ({ ...prev, documents_gst: '' }))
       }
     }
-    // Clear error when user starts typing
-    if (errors[name] && name !== 'bankDetails.ifsc' && name !== 'kyc.gst') {
+    // Clear error when user starts typing (fields with inline validation handle their own messages)
+    const inlineValidated = new Set(['phone', 'email', 'bankDetails.ifsc', 'kyc.gst', 'kyc.pan', 'kyc.aadhaar'])
+    if (errors[name] && !inlineValidated.has(name)) {
       setErrors((prev) => ({ ...prev, [name]: '' }))
     }
   }
@@ -455,7 +499,9 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
           onChange={handleChange}
           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.phone ? 'border-red-500' : 'border-gray-300'
             }`}
-          placeholder="Enter phone number"
+          placeholder="10-digit mobile number"
+          maxLength={10}
+          inputMode="numeric"
         />
         {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
       </div>
@@ -618,11 +664,30 @@ const AgentForm = ({ agent, onSave, onClose, isSaving = false, fixedManagedBy = 
       <div className={`grid grid-cols-1 gap-4 ${formData.agentType === 'GST' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">PAN</label>
-          <input type="text" name="kyc.pan" value={formData.kyc?.pan || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="PAN number" />
+          <input
+            type="text"
+            name="kyc.pan"
+            value={formData.kyc?.pan || ''}
+            onChange={handleChange}
+            className={`w-full px-3 py-2 border rounded-lg uppercase ${errors['kyc.pan'] ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="ABCDE1234F"
+            maxLength={10}
+          />
+          {errors['kyc.pan'] && <p className="mt-1 text-sm text-red-600">{errors['kyc.pan']}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Aadhaar</label>
-          <input type="text" name="kyc.aadhaar" value={formData.kyc?.aadhaar || ''} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Aadhaar number" />
+          <input
+            type="text"
+            name="kyc.aadhaar"
+            value={formData.kyc?.aadhaar || ''}
+            onChange={handleChange}
+            className={`w-full px-3 py-2 border rounded-lg ${errors['kyc.aadhaar'] ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="12 digit Aadhaar"
+            maxLength={12}
+            inputMode="numeric"
+          />
+          {errors['kyc.aadhaar'] && <p className="mt-1 text-sm text-red-600">{errors['kyc.aadhaar']}</p>}
         </div>
         {formData.agentType === 'GST' && (
           <div>

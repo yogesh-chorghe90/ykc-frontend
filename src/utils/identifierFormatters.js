@@ -78,3 +78,87 @@ export const formatLoanAccountNo = (value) => {
   return cleaned
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/
+const MOBILE_REGEX = /^[6-9]\d{9}$/
+
+export const isValidEmail = (value) => {
+  const text = String(value ?? '').trim()
+  if (!text) return false
+  return EMAIL_REGEX.test(text)
+}
+
+export const isValidMobileNumber = (value) => {
+  const text = String(value ?? '').replace(/\D/g, '')
+  if (!text) return false
+  return MOBILE_REGEX.test(text)
+}
+
+export const isValidPanNumber = (value) => {
+  const text = String(value ?? '').toUpperCase().trim()
+  if (!text) return false
+  return PAN_REGEX.test(text)
+}
+
+export const isValidAadhaarNumber = (value) => {
+  const text = String(value ?? '').replace(/\D/g, '')
+  if (!text) return false
+  return /^\d{12}$/.test(text)
+}
+
+export const isValidLoanAccountNo = (value) => {
+  const text = String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!text) return false
+  return text.length >= 9 && text.length <= 18
+}
+
+/** Inline validation while typing; empty value is allowed. */
+export const validateMobileNumber = (rawValue, normalizedValue) => {
+  const raw = String(rawValue ?? '')
+  const normalized = String(normalizedValue ?? '').replace(/\D/g, '')
+  if (!normalized) return ''
+  if (/\D/.test(raw)) return 'Only numbers are allowed'
+  if (raw.replace(/\D/g, '').length > 10) return 'Maximum 10 digits allowed'
+  if (normalized.length < 10) return 'Enter a 10-digit mobile number'
+  if (!MOBILE_REGEX.test(normalized)) return 'Enter a valid 10-digit mobile number starting with 6–9'
+  return ''
+}
+
+export const validateEmail = (rawValue, normalizedValue) => {
+  const normalized = String(normalizedValue ?? '').trim()
+  if (!normalized) return ''
+  if (!EMAIL_REGEX.test(normalized)) return 'Enter a valid email address'
+  return ''
+}
+
+export const validatePanNumber = (rawValue, normalizedValue) => {
+  const raw = String(rawValue ?? '')
+  const normalized = String(normalizedValue ?? '').toUpperCase()
+  if (!normalized) return ''
+  if (/[^a-zA-Z0-9]/.test(raw)) return 'Only letters and numbers are allowed'
+  if (raw.replace(/[^a-zA-Z0-9]/g, '').length > 10) return 'PAN cannot exceed 10 characters'
+  if (normalized.length < 10) return 'PAN must be 10 characters (e.g. ABCDE1234F)'
+  if (!PAN_REGEX.test(normalized)) return 'Invalid PAN format (e.g. ABCDE1234F)'
+  return ''
+}
+
+export const validateAadhaarNumber = (rawValue, normalizedValue) => {
+  const raw = String(rawValue ?? '')
+  const normalized = String(normalizedValue ?? '').replace(/\D/g, '')
+  if (!normalized) return ''
+  if (/\D/.test(raw)) return 'Only numbers are allowed'
+  if (raw.replace(/\D/g, '').length > 12) return 'Aadhaar cannot exceed 12 digits'
+  if (normalized.length < 12) return 'Aadhaar must be 12 digits'
+  return ''
+}
+
+export const validateLoanAccountNo = (rawValue, normalizedValue) => {
+  const raw = String(rawValue ?? '')
+  const normalized = String(normalizedValue ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!normalized) return ''
+  if (/[^a-zA-Z0-9]/i.test(raw)) return 'Only letters and numbers are allowed'
+  if (raw.replace(/[^a-zA-Z0-9]/gi, '').length > 18) return 'Loan Account No cannot exceed 18 characters'
+  if (normalized.length < 9) return 'Loan Account No must be at least 9 characters'
+  return ''
+}
+

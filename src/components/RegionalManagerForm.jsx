@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
-import api from '../services/api'
 import PasswordInput from './PasswordInput'
+import {
+  formatMobileNumber,
+  isValidEmail,
+  validateEmail,
+  validateMobileNumber,
+} from '../utils/identifierFormatters'
 const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
   const isEdit = !!regionalManager
   const [formData, setFormData] = useState({
@@ -16,7 +21,7 @@ const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
       setFormData({
         name: regionalManager.name || '',
         email: regionalManager.email || '',
-        mobile: regionalManager.mobile || regionalManager.phone || '',
+        mobile: formatMobileNumber(regionalManager.mobile || regionalManager.phone || ''),
         password: '', // Don't pre-fill password
       })
     }
@@ -25,9 +30,17 @@ const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
   const validate = () => {
     const newErrors = {}
     if (!formData.name.trim()) newErrors.name = 'Name is required'
-    if (!formData.email.trim()) newErrors.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email'
-    if (!formData.mobile.trim()) newErrors.mobile = 'Mobile is required'
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required'
+    } else if (!isValidEmail(formData.email)) {
+      newErrors.email = 'Enter a valid email address'
+    }
+    if (!formData.mobile.trim()) {
+      newErrors.mobile = 'Mobile is required'
+    } else {
+      const mobileErr = validateMobileNumber(formData.mobile, formatMobileNumber(formData.mobile))
+      if (mobileErr) newErrors.mobile = mobileErr
+    }
     // Password is only required when creating, not when editing
     if (!isEdit && (!formData.password || formData.password.length < 6)) {
       newErrors.password = 'Password must be at least 6 characters'
@@ -54,8 +67,18 @@ const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }))
+    let nextValue = value
+    if (name === 'mobile') {
+      nextValue = formatMobileNumber(value)
+      const msg = nextValue ? validateMobileNumber(value, nextValue) : ''
+      setErrors((prev) => ({ ...prev, mobile: msg }))
+    } else if (name === 'email') {
+      const msg = value.trim() && !isValidEmail(value) ? validateEmail(value, value.trim()) : ''
+      setErrors((prev) => ({ ...prev, email: msg }))
+    } else if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }))
+    }
+    setFormData((prev) => ({ ...prev, [name]: nextValue }))
   }
 
   return (
@@ -93,6 +116,8 @@ const RegionalManagerForm = ({ regionalManager, onSave, onClose }) => {
           onChange={handleChange}
           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.mobile ? 'border-red-500' : 'border-gray-300'}`}
           placeholder="10-digit mobile number"
+          maxLength={10}
+          inputMode="numeric"
         />
         {errors.mobile && <p className="mt-1 text-sm text-red-600">{errors.mobile}</p>}
       </div>

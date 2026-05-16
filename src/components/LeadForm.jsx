@@ -6,6 +6,14 @@ import {
   enrichFieldsWithCatalog,
   filterRedundantGenericContactFields,
 } from '../utils/leadFormFieldUtils';
+import {
+  collectLeadFormValidationErrors,
+  formatByFieldKind,
+  getFieldValidationKind,
+  getStandardFieldKind,
+  validateByFieldKind,
+  validateField,
+} from '../utils/leadFormValidation';
 import API_BASE_URL from '../config/api';
 import { toast } from '../services/toastService';
 import { authService } from '../services/auth.service';
@@ -493,73 +501,22 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     autoFillAgentCommission();
   }, [isFranchise, selectedAgentId, agents, lead, adminCommissionLimit]);
 
-  const handleFieldChange = (key, value) => {
-    setFormValues((p) => ({ ...(p || {}), [key]: value }));
-    // Synchronize with standard state if key matches a standard field
+  const handleFieldChange = (key, value, fieldMeta = null) => {
+    const field = fieldMeta || { key, type: fieldCatalog.find((d) => d.key === key)?.type };
+    const { normalized, error } = validateField(field, value);
+    const nextValue = normalized ?? value;
+
+    setFieldErrors((prev) => ({ ...prev, [key]: error }));
+    setFormValues((p) => ({ ...(p || {}), [key]: nextValue }));
     if (Object.keys(standard).includes(key)) {
-      setStandard((p) => ({ ...p, [key]: value }));
+      setStandard((p) => ({ ...p, [key]: nextValue }));
     }
   };
 
   const handleStandardChange = (k, v) => {
-    const validateStandardField = (key, rawValue, normalizedValue) => {
-      const raw = String(rawValue ?? '');
-      const normalized = String(normalizedValue ?? '');
-
-      if (!normalized) return '';
-
-      if (key === 'applicantMobile' || key === 'smBmMobile' || key === 'asmMobile') {
-        if (/\D/.test(raw)) return 'Only numbers are allowed';
-        if (raw.replace(/\D/g, '').length > 10) return 'Maximum 10 digits allowed';
-        if (normalized.length < 10) return 'Enter a 10-digit mobile number';
-        return '';
-      }
-
-      if (key === 'panNumber') {
-        if (/[^a-zA-Z0-9]/.test(raw)) return 'Only letters and numbers are allowed';
-        if (raw.replace(/[^a-zA-Z0-9]/g, '').length > 10) return 'PAN cannot exceed 10 characters';
-        if (normalized.length < 10) return 'PAN must be 10 characters (e.g. ABCDE1234F)';
-        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(normalized)) return 'Invalid PAN format (e.g. ABCDE1234F)';
-        return '';
-      }
-
-      if (key === 'aadhaarNumber') {
-        if (/\D/.test(raw)) return 'Only numbers are allowed';
-        if (raw.replace(/\D/g, '').length > 12) return 'Aadhaar cannot exceed 12 digits';
-        if (normalized.length < 12) return 'Aadhaar must be 12 digits';
-        return '';
-      }
-
-      if (key === 'loanAccountNo') {
-        if (/[^a-zA-Z0-9]/.test(raw)) return 'Only letters and numbers are allowed';
-        if (raw.replace(/[^a-zA-Z0-9]/g, '').length > 18) return 'Loan Account No cannot exceed 18 characters';
-        if (normalized.length < 9) return 'Loan Account No must be at least 9 characters';
-        return '';
-      }
-
-      return '';
-    };
-
-    const formatByField = (key, value) => {
-      if (value === undefined || value === null) return value;
-      const text = String(value);
-      if (key === 'applicantMobile' || key === 'smBmMobile' || key === 'asmMobile') {
-        return text.replace(/\D/g, '').slice(0, 10);
-      }
-      if (key === 'panNumber') {
-        return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
-      }
-      if (key === 'aadhaarNumber') {
-        return text.replace(/\D/g, '').slice(0, 12);
-      }
-      if (key === 'loanAccountNo') {
-        // Keep alphanumeric LAN/account format and normalize to uppercase.
-        return text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18);
-      }
-      return value;
-    };
-    const normalizedValue = formatByField(k, v);
-    const validationMessage = validateStandardField(k, v, normalizedValue);
+    const kind = getStandardFieldKind(k);
+    const normalizedValue = kind ? formatByFieldKind(kind, v) : v;
+    const validationMessage = kind ? validateByFieldKind(kind, v, normalizedValue) : '';
     setFieldErrors((prev) => ({ ...prev, [k]: validationMessage }));
     setStandard((p) => {
       const updated = { ...p, [k]: normalizedValue };
@@ -857,19 +814,39 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       if (missingDocs.length > 0) {
         return toast.error(`Required documents missing: ${missingDocs.join(', ')}`);
       }
-    } else if (!isAgent && !isNewLead) {
-      // For non-agents creating/editing bank leads: validate standard required fields
-      if (!standard.customerName || standard.customerName.trim() === '') {
-        return toast.error('Customer Name is required');
+      const agentFieldsToValidate = filterRedundantGenericContactFields(
+        leadFormDef.agentFields?.length ? leadFormDef.agentFields : (leadFormDef.fields || [])
+      );
+      const agentFormatErrors = collectLeadFormValidationErrors({
+        standard,
+        formValues,
+        fields: agentFieldsToValidate,
+      });
+      if (Object.keys(agentFormatErrors).length > 0) {
+        setFieldErrors((prev) => ({ ...prev, ...agentFormatErrors }));
+        const first = Object.values(agentFormatErrors)[0];
+        return toast.error(first || 'Please fix invalid field values');
       }
-      if (!standard.dsaCode || standard.dsaCode.trim() === '') {
-        return toast.error('DSA Code is required');
+    } else if (!isAgent) {
+      const formatErrors = collectLeadFormValidationErrors({ standard });
+      if (Object.keys(formatErrors).length > 0) {
+        setFieldErrors((prev) => ({ ...prev, ...formatErrors }));
+        const first = Object.values(formatErrors)[0];
+        return toast.error(first || 'Please fix invalid field values');
       }
-      if (!standard.loanType || standard.loanType.trim() === '') {
-        return toast.error('Loan Type is required');
-      }
-      if (!standard.loanAmount || standard.loanAmount <= 0) {
-        return toast.error('Loan Amount must be greater than 0');
+      if (!isNewLead) {
+        if (!standard.customerName || standard.customerName.trim() === '') {
+          return toast.error('Customer Name is required');
+        }
+        if (!standard.dsaCode || standard.dsaCode.trim() === '') {
+          return toast.error('DSA Code is required');
+        }
+        if (!standard.loanType || standard.loanType.trim() === '') {
+          return toast.error('Loan Type is required');
+        }
+        if (!standard.loanAmount || standard.loanAmount <= 0) {
+          return toast.error('Loan Amount must be greater than 0');
+        }
       }
     }
 
@@ -1163,19 +1140,29 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                   .sort((a, b) => (a.order || 0) - (b.order || 0))
                   .map((f, fieldIndex) => {
                   const val = formValues?.[f.key] ?? standard[f.key] ?? '';
-                  const inputClass = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none";
+                  const fieldKind = getFieldValidationKind(f);
+                  const hasError = Boolean(fieldErrors[f.key]);
+                  const inputClass = `w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                    hasError ? 'border-red-400' : 'border-gray-300'
+                  }`;
                   const isFileField = (f.type || '').toLowerCase() === 'file';
                   const displayLabel = f.label || f.key;
+                  const inputMaxLength =
+                    fieldKind === 'mobile' ? 10
+                      : fieldKind === 'pan' ? 10
+                        : fieldKind === 'aadhaar' ? 12
+                          : fieldKind === 'loanAccount' ? 18
+                            : undefined;
                   return (
                     <div key={`${f.key}-${fieldIndex}`}>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">{displayLabel}{f.required && ' *'}</label>
                       {f.type === 'select' ? (
-                        <select value={val} onChange={(e) => handleFieldChange(f.key, e.target.value)} className={inputClass}>
+                        <select value={val} onChange={(e) => handleFieldChange(f.key, e.target.value, f)} className={inputClass}>
                           <option value="">-- select --</option>
                           {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : f.type === 'textarea' ? (
-                        <textarea value={val} onChange={(e) => handleFieldChange(f.key, e.target.value)} className={inputClass} />
+                        <textarea value={val} onChange={(e) => handleFieldChange(f.key, e.target.value, f)} className={inputClass} />
                       ) : isFileField ? (
                         <div className="space-y-2">
                           <input
@@ -1222,7 +1209,16 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                           </ul>
                         </div>
                       ) : (
-                        <input type={f.type || 'text'} value={val} onChange={(e) => handleFieldChange(f.key, e.target.value)} className={inputClass} />
+                        <input
+                          type={fieldKind === 'mobile' ? 'tel' : (f.type || 'text')}
+                          value={val}
+                          onChange={(e) => handleFieldChange(f.key, e.target.value, f)}
+                          className={inputClass}
+                          maxLength={inputMaxLength}
+                        />
+                      )}
+                      {fieldErrors[f.key] && (
+                        <p className="mt-1 text-xs text-red-600">{fieldErrors[f.key]}</p>
                       )}
                     </div>
                   );
@@ -1476,8 +1472,13 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                     type="email"
                     value={standard.applicantEmail || ''}
                     onChange={(e) => handleStandardChange('applicantEmail', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                      fieldErrors.applicantEmail ? 'border-red-400' : 'border-gray-300'
+                    }`}
                   />
+                  {fieldErrors.applicantEmail && (
+                    <p className="mt-1 text-xs text-red-600">{fieldErrors.applicantEmail}</p>
+                  )}
                 </div>
 
                 {/* Applicant Mobile */}
@@ -1646,8 +1647,13 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                       type="email"
                       value={standard.smBmEmail || ''}
                       onChange={(e) => handleStandardChange('smBmEmail', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                        fieldErrors.smBmEmail ? 'border-red-400' : 'border-gray-300'
+                      }`}
                     />
+                    {fieldErrors.smBmEmail && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.smBmEmail}</p>
+                    )}
                   </div>
                 )}
 
@@ -1691,8 +1697,13 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                       type="email"
                       value={standard.asmEmail || ''}
                       onChange={(e) => handleStandardChange('asmEmail', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none ${
+                        fieldErrors.asmEmail ? 'border-red-400' : 'border-gray-300'
+                      }`}
                     />
+                    {fieldErrors.asmEmail && (
+                      <p className="mt-1 text-xs text-red-600">{fieldErrors.asmEmail}</p>
+                    )}
                   </div>
                 )}
 
