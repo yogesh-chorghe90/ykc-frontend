@@ -1,11 +1,19 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Upload, X, File, ExternalLink, Trash2 } from 'lucide-react';
 import api from '../services/api';
+import {
+  applyFormValuesToLeadPayload,
+  enrichFieldsWithCatalog,
+  filterRedundantGenericContactFields,
+} from '../utils/leadFormFieldUtils';
 import API_BASE_URL from '../config/api';
 import { toast } from '../services/toastService';
 import { authService } from '../services/auth.service';
+import { hasAnyRole } from '../utils/roleUtils';
 import { logoutAndRedirect } from '../services/authSession';
 const NEW_LEAD_OPTION = 'new_lead';
+/** Roles allowed to load the global field-definition catalog (agents use labels from lead form config). */
+const FIELD_CATALOG_ROLES = ['super_admin', 'accounts_manager', 'regional_manager'];
 
 /** Valid MongoDB ObjectId string for pre-lead document uploads (Document.entityId requires ObjectId). */
 function generateTempObjectId() {
@@ -69,6 +77,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
     return lead?.bank?._id || lead?.bank || '';
   });
   const [leadFormDef, setLeadFormDef] = useState(null);
+  const [fieldCatalog, setFieldCatalog] = useState([]);
   const [loadingFormDef, setLoadingFormDef] = useState(false);
 
   const [formValues, setFormValues] = useState(() => ({ ...lead?.formValues }));
@@ -332,6 +341,20 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
   }, [isAgent, lead]);
 
   useEffect(() => {
+    if (!hasAnyRole(FIELD_CATALOG_ROLES)) return;
+    const loadCatalog = async () => {
+      try {
+        const resp = await api.fieldDefs.list();
+        setFieldCatalog(resp?.data || []);
+      } catch (err) {
+        console.error('Failed to load field catalog', err);
+        setFieldCatalog([]);
+      }
+    };
+    loadCatalog();
+  }, []);
+
+  useEffect(() => {
     // when bank/leadType changes, load lead form
     const loadLeadForm = async () => {
       if (!selectedBank) {
@@ -345,17 +368,30 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
           : await api.leadForms.getByBank(selectedBank);
         const data = resp?.data || null;
         // normalize field flags (ensure `required` is boolean even if backend returns strings)
+        let catalog = fieldCatalog;
+        if (hasAnyRole(FIELD_CATALOG_ROLES) && !catalog.length) {
+          try {
+            const listed = await api.fieldDefs.list();
+            catalog = listed?.data || [];
+            if (catalog.length) setFieldCatalog(catalog);
+          } catch {
+            catalog = [];
+          }
+        }
+
+        const normalizeRequired = (f) => ({
+          ...f,
+          required: !!(f.required === true || f.required === 'true' || f.required === 1 || f.required === '1'),
+        });
+
         const normalized = data
           ? {
             ...data,
-            fields: (data.fields || []).map((f) => ({
-              ...f,
-              required: !!(f.required === true || f.required === 'true' || f.required === 1 || f.required === '1'),
-            })),
-            agentFields: (data.agentFields || []).map((f) => ({
-              ...f,
-              required: !!(f.required === true || f.required === 'true' || f.required === 1 || f.required === '1'),
-            })),
+            fields: enrichFieldsWithCatalog((data.fields || []).map(normalizeRequired), catalog),
+            agentFields: enrichFieldsWithCatalog(
+              filterRedundantGenericContactFields((data.agentFields || []).map(normalizeRequired)),
+              catalog
+            ),
           }
           : null;
         setLeadFormDef(normalized);
@@ -373,7 +409,7 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       }
     };
     loadLeadForm();
-  }, [selectedBank]);
+  }, [selectedBank, fieldCatalog]);
 
   // Fetch admin commission limit when bank is selected (for franchise agent commission and referral franchise commission validation)
   useEffect(() => {
@@ -846,6 +882,10 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
       documents: (uploadedDocs || []).map((d) => ({ documentType: d.documentType, url: d.url })),
     };
 
+    if (isAgent && leadFormDef && formValues) {
+      applyFormValuesToLeadPayload(payload, formValues);
+    }
+
     // Add sub-agent assignment and commission
     if (selectedSubAgentId && selectedSubAgentId !== '') {
       payload.subAgent = selectedSubAgentId;
@@ -1070,9 +1110,11 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                     )}
                   </>
                 )}
-                {((leadFormDef.agentFields && leadFormDef.agentFields.length > 0) 
-                  ? leadFormDef.agentFields 
-                  : (leadFormDef.fields || []))
+                {filterRedundantGenericContactFields(
+                  (leadFormDef.agentFields && leadFormDef.agentFields.length > 0)
+                    ? leadFormDef.agentFields
+                    : (leadFormDef.fields || [])
+                )
                   .filter((f) => {
                     const key = (f.key || '').toLowerCase();
                     const label = (f.label || '').toLowerCase();
@@ -1119,13 +1161,14 @@ export default function LeadForm({ lead = null, onSave, onClose, isSubmitting = 
                     return true;
                   })
                   .sort((a, b) => (a.order || 0) - (b.order || 0))
-                  .map((f) => {
+                  .map((f, fieldIndex) => {
                   const val = formValues?.[f.key] ?? standard[f.key] ?? '';
                   const inputClass = "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none";
                   const isFileField = (f.type || '').toLowerCase() === 'file';
+                  const displayLabel = f.label || f.key;
                   return (
-                    <div key={f.key}>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">{f.label}{f.required && ' *'}</label>
+                    <div key={`${f.key}-${fieldIndex}`}>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">{displayLabel}{f.required && ' *'}</label>
                       {f.type === 'select' ? (
                         <select value={val} onChange={(e) => handleFieldChange(f.key, e.target.value)} className={inputClass}>
                           <option value="">-- select --</option>

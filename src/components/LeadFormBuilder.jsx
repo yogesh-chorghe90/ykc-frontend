@@ -1,10 +1,32 @@
 import { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { toast } from '../services/toastService';
 import KeyBuilder from './KeyBuilder';
 import KeyPicker from './KeyPicker';
+import { enrichFieldsWithCatalog } from '../utils/leadFormFieldUtils';
 
 const NEW_LEAD_OPTION = 'new_lead';
+
+const PROTECTED_FIELD_KEYS = new Set([
+  'leadname',
+  'mobile',
+  'email',
+  'address',
+  'dsacode',
+  'loantype',
+  'loanamount',
+  'branch',
+  'loanaccountno',
+]);
+
+const normalizeFieldKey = (key) =>
+  String(key || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+
+const isProtectedFieldKey = (key) => PROTECTED_FIELD_KEYS.has(normalizeFieldKey(key));
 
 export default function LeadFormBuilder({ onSaved }) {
   const [banks, setBanks] = useState([]);
@@ -12,6 +34,7 @@ export default function LeadFormBuilder({ onSaved }) {
   const [availableKeys, setAvailableKeys] = useState([]);
   const [form, setForm] = useState({ name: '', fields: [], documentTypes: [], active: true });
   const [loading, setLoading] = useState(false);
+  const [deletingKey, setDeletingKey] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -55,9 +78,6 @@ export default function LeadFormBuilder({ onSaved }) {
             const excludedKeys = [
               'applicantemail', 'applicant_email', 'applicant-email',
               'applicantmobile', 'applicant_mobile', 'applicant-mobile',
-              'asm', 'asmname', 'asm_name', 'asm-name',
-              'asmemail', 'asm_email', 'asm-email',
-              'asmmobile', 'asm_mobile', 'asm-mobile',
               'salary', 'Salary',
               'commissionpercentage', 'commission_percentage', 'commission-percentage', 'commissionpercent', 'commission_percent', 'commission-percent',
               'commissionamount', 'commission_amount', 'commission-amount', 'commissionamt', 'commission_amt', 'commission-amt',
@@ -69,10 +89,6 @@ export default function LeadFormBuilder({ onSaved }) {
               return false;
             }
             
-            // Check for ASM variations - exclude all ASM fields
-            if (label.includes('asm') || key.includes('asm')) {
-              return false;
-            }
             // Allow SM/BM and AM/BM fields - they will pass through the filter
             if (label.includes('applicant') && (label.includes('email') || label.includes('mobile'))) {
               return false;
@@ -113,7 +129,12 @@ export default function LeadFormBuilder({ onSaved }) {
             return true;
           });
           
-          setForm({ ...data, fields: filteredFields, documentTypes: data.documentTypes || [], active: data.active });
+          setForm({
+            ...data,
+            fields: enrichFieldsWithCatalog(filteredFields, availableKeys),
+            documentTypes: data.documentTypes || [],
+            active: data.active,
+          });
         } else {
           setForm({ name: '', fields: [], documentTypes: [], active: true });
         }
@@ -124,7 +145,7 @@ export default function LeadFormBuilder({ onSaved }) {
       }
     };
     loadForm();
-  }, [selectedBank]);
+  }, [selectedBank, availableKeys]);
 
   const handleToggle = (key) => {
     const exists = (form.fields || []).some(f => f.key === key);
@@ -155,13 +176,53 @@ export default function LeadFormBuilder({ onSaved }) {
     setForm(p => ({ ...p, fields: p.fields.map(f => (f.key === key ? { ...f, ...patch } : f)) }));
   };
 
+  const handleDeleteFieldDef = async (key, label, e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (isProtectedFieldKey(key)) {
+      toast.error('Cannot delete', 'Core system fields cannot be removed.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Delete "${label}" (${key}) from Available Fields?\n\nThis removes it from the global catalog. Click Save Lead Form on each bank if it was already added to agent fields.`
+    );
+    if (!confirmed) return;
+    try {
+      setDeletingKey(key);
+      await api.fieldDefs.remove(key);
+      setAvailableKeys((p) => p.filter((k) => k.key !== key));
+      setForm((p) => ({
+        ...p,
+        fields: (p.fields || []).filter((f) => f.key !== key),
+      }));
+      toast.success('Deleted', `"${label}" removed from Available Fields`);
+    } catch (err) {
+      console.error('Delete field error', err);
+      toast.error('Delete failed', err.message || '');
+    } finally {
+      setDeletingKey(null);
+    }
+  };
+
   const handleCreateFieldDef = (created) => {
-    setAvailableKeys(p => {
-      const next = [...p.filter(x => x.key !== created.key), created];
+    setAvailableKeys((p) => {
+      const next = [...p.filter((x) => x.key !== created.key), created];
       return next.sort((a, b) => (a.key || '').localeCompare(b.key || ''));
     });
-    // auto-select created key
-    handleToggle(created.key);
+    setForm((p) => {
+      if ((p.fields || []).some((f) => f.key === created.key)) return p;
+      const toAdd = {
+        key: created.key,
+        label: created.label || created.key,
+        type: created.type || 'text',
+        required: !!created.required,
+        isSearchable: !!created.isSearchable,
+        description: created.description || '',
+        options: Array.isArray(created.options) ? created.options.join(',') : created.options || '',
+        order: (p.fields?.length || 0) + 1,
+      };
+      return { ...p, fields: [...(p.fields || []), toAdd] };
+    });
   };
 
   const handleSave = async () => {
@@ -177,14 +238,12 @@ export default function LeadFormBuilder({ onSaved }) {
 
         // For New Lead form: keep all fields admin selected (including Lead Name, customerName)
         if (isNewLeadForm) {
-          // Only exclude commission/ASM for new lead
+          // Only exclude commission fields for new lead
           const newLeadExcluded = [
-            'asm', 'asmname', 'asm_name', 'asm-name', 'asmemail', 'asm_email', 'asmmobile', 'asm_mobile',
             'commissionpercentage', 'commission_percentage', 'commissionamount', 'commission_amount',
             'commission', 'Commission', 'comission', 'Comission'
           ];
           if (newLeadExcluded.some(ex => key.includes(ex) || label.includes(ex))) return false;
-          if (label.includes('asm') || key.includes('asm')) return false;
           if (label.includes('commission') || key.includes('commission')) return false;
           // Skip duplicate DSA Code handling below - fall through
         } else {
@@ -194,9 +253,6 @@ export default function LeadFormBuilder({ onSaved }) {
           const excludedKeys = [
             'applicantemail', 'applicant_email', 'applicant-email',
             'applicantmobile', 'applicant_mobile', 'applicant-mobile',
-            'asm', 'asmname', 'asm_name', 'asm-name',
-            'asmemail', 'asm_email', 'asm-email',
-            'asmmobile', 'asm_mobile', 'asm-mobile',
             'salary', 'Salary',
             'commissionpercentage', 'commission_percentage', 'commission-percentage', 'commissionpercent', 'commission_percent', 'commission-percent',
             'commissionamount', 'commission_amount', 'commission-amount', 'commissionamt', 'commission_amt', 'commission-amt',
@@ -205,7 +261,6 @@ export default function LeadFormBuilder({ onSaved }) {
           if (excludedKeys.some(excluded => key === excluded.toLowerCase() || label.includes(excluded.toLowerCase()))) {
             return false;
           }
-          if (label.includes('asm') || key.includes('asm')) return false;
           if (label.includes('applicant') && (label.includes('email') || label.includes('mobile'))) return false;
           // Note: Removed check for 'customer name' and 'lead name' - admins can now configure these fields
           if (label.includes('salary')) return false;
@@ -239,7 +294,10 @@ export default function LeadFormBuilder({ onSaved }) {
         return true;
       });
       
-      const agentFieldsPayload = fieldsToSave.map(f => ({ ...f, options: f.options ? f.options.split(',').map(s => s.trim()).filter(Boolean) : [] }));
+      const agentFieldsPayload = enrichFieldsWithCatalog(fieldsToSave, availableKeys).map((f) => ({
+        ...f,
+        options: f.options ? f.options.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      }));
       const payload = {
         leadType: selectedBank === NEW_LEAD_OPTION ? 'new_lead' : 'bank',
         bank: selectedBank === NEW_LEAD_OPTION ? null : selectedBank,
@@ -303,7 +361,7 @@ export default function LeadFormBuilder({ onSaved }) {
           <h3 className="font-semibold mb-2">Available Fields</h3>
           <div className="space-y-4 max-h-96 overflow-auto">
             {(() => {
-              const filtered = (availableKeys || []).filter((k, index, array) => {
+              const filteredCatalog = (availableKeys || []).filter((k, index, array) => {
                 const key = (k.key || '').toLowerCase();
                 const label = (k.label || '').toLowerCase();
 
@@ -317,9 +375,6 @@ export default function LeadFormBuilder({ onSaved }) {
                 const excludedKeys = [
                   'applicantemail', 'applicant_email', 'applicant-email',
                   'applicantmobile', 'applicant_mobile', 'applicant-mobile',
-                  'asm', 'asmname', 'asm_name', 'asm-name',
-                  'asmemail', 'asm_email', 'asm-email',
-                  'asmmobile', 'asm_mobile', 'asm-mobile',
                   'salary', 'Salary',
                   'commissionpercentage', 'commission_percentage', 'commission-percentage', 'commissionpercent', 'commission_percent', 'commission-percent',
                   'commissionamount', 'commission_amount', 'commission-amount', 'commissionamt', 'commission_amt', 'commission-amt',
@@ -331,10 +386,6 @@ export default function LeadFormBuilder({ onSaved }) {
                   return false;
                 }
                 
-                // Check for ASM variations - exclude all ASM fields
-                if (label.includes('asm') || key.includes('asm')) {
-                  return false;
-                }
                 // Allow SM/BM and AM/BM fields - they will pass through the filter
                 if (label.includes('applicant') && (label.includes('email') || label.includes('mobile'))) {
                   return false;
@@ -387,6 +438,21 @@ export default function LeadFormBuilder({ onSaved }) {
                 
                 return true;
               });
+
+              const catalogKeys = new Set(filteredCatalog.map((k) => k.key));
+              const selectedOnly = (form.fields || [])
+                .filter((f) => f.key && !catalogKeys.has(f.key))
+                .map((f) => ({
+                  key: f.key,
+                  label: f.label || f.key,
+                  type: f.type || 'text',
+                  required: !!f.required,
+                  isSearchable: !!f.isSearchable,
+                  category: 'other',
+                  order: f.order || 0,
+                }));
+              const filtered = [...filteredCatalog, ...selectedOnly];
+
               const catOrder = { personal: 0, bank: 1, other: 2 };
               const sorted = [...filtered].sort((a, b) => {
                 const catA = catOrder[a.category] ?? 2;
@@ -413,13 +479,29 @@ export default function LeadFormBuilder({ onSaved }) {
                     <h4 className="text-sm font-medium text-gray-600 mb-2">{sec.title}</h4>
                     <div className="grid grid-cols-2 gap-2">
                       {fields.map(k => (
-                        <label key={k.key} className="p-2 border rounded flex items-start gap-2">
-                          <input type="checkbox" checked={(form.fields || []).some(f => f.key === k.key)} onChange={() => handleToggle(k.key)} />
-                          <div>
+                        <div key={k.key} className="p-2 border rounded flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={(form.fields || []).some(f => f.key === k.key)}
+                            onChange={() => handleToggle(k.key)}
+                          />
+                          <div className="flex-1 min-w-0">
                             <div className="font-medium">{k.label}</div>
-                            <div className="text-xs text-gray-500">{k.type}{k.required ? ' · required' : ''}{k.isSearchable ? ' · searchable' : ''}</div>
+                            <div className="text-xs text-gray-500">{k.key} · {k.type}{k.required ? ' · required' : ''}{k.isSearchable ? ' · searchable' : ''}</div>
                           </div>
-                        </label>
+                          {!isProtectedFieldKey(k.key) && (
+                            <button
+                              type="button"
+                              className="p-1 text-red-600 hover:bg-red-50 rounded shrink-0 disabled:opacity-50"
+                              title="Delete from Available Fields"
+                              disabled={deletingKey === k.key}
+                              onClick={(e) => handleDeleteFieldDef(k.key, k.label, e)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>

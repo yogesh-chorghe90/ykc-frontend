@@ -545,6 +545,8 @@ export const api = {
   fieldDefs: {
     list: () => apiRequest('/field-defs'),
     create: (data) => apiRequest('/field-defs', { method: 'POST', body: JSON.stringify(data) }),
+    remove: (key) =>
+      apiRequest(`/field-defs/${encodeURIComponent(key)}`, { method: 'DELETE' }),
   },
 
   // Dashboard endpoints
